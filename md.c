@@ -170,6 +170,13 @@ struct json* jstring_to_json(char* str, size_t* start, size_t end){
 	}
 	return out;
 }
+void print_titles(struct json* j){
+	struct node* n = j->start;
+	while(n != NULL){
+		printf("%s\n", n->title);
+		n = n->next;
+	}
+}
 int main(int arg){	
 	int fd = open("model-00001-of-00004.safetensors", O_RDONLY);
 	if(fd == -1){
@@ -191,6 +198,7 @@ int main(int arg){
 	//q + 8 is the first real character
 	printf("%c %d\n", dat[q + 8], dat[q + 8]);
 	size_t p = 8;
-	struct json* j = jstring_to_json(dat, &p, q + 8);
+	struct json* j = jstring_to_json(dat, &p, q + 7);
+	print_titles(j);
 
 }
