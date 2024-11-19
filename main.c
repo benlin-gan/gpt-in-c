@@ -1,4 +1,5 @@
 #include "json.h"
+#include "math.h"
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -24,9 +25,12 @@ int main(int arg, char** argv){
 	printf("%c %d\n", dat[q + 6], dat[q + 6]);
 	printf("%c %d\n", dat[q + 7], dat[q + 7]);
 	//q + 8 is the first real character
-	printf("%c %d\n", dat[q + 8], dat[q + 8]);
+	printf("%c %zu\n", dat[q + 8], (size_t) dat[q + 8]);
+	printf("%c %zu\n", dat[q + 8], (size_t) dat[q + 9]);
 	size_t p = 8;
 	struct json* j = jstring_to_json(dat, &p, q + 7);
 	print_titles(j);
+	bfloat16 a = *(bfloat16*) (dat + q + 8);
+	print_bfloat(a);
 
 }
