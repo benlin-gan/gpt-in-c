@@ -45,93 +45,102 @@ ssize_t index_of_next(char* str, char c, size_t curr, size_t end){
 	}
 	return -1;
 }
-size_t jstring_to_int(char* str, size_t start, size_t end);
-char* jstring_to_string(char* str, size_t start, size_t end);
-struct json* jstring_to_json(char* str, size_t start, size_t end);
-struct node* jstring_to_node(char* str, size_t start, size_t end);
-struct node* jstring_to_anode(char* str, size_t start, size_t end);
-struct json* jstring_to_array(char* str, size_t start, size_t end);
-void* jstring_to_unknown(char* str, size_t start, size_t end, enum payload_type* t);
+size_t jstring_to_int(char* str, size_t* start, size_t end);
+char* jstring_to_string(char* str, size_t* start, size_t end);
+struct json* jstring_to_json(char* str, size_t* start, size_t end);
+struct node* jstring_to_node(char* str, size_t* start, size_t end);
+struct node* jstring_to_anode(char* str, size_t* start, size_t end);
+struct json* jstring_to_array(char* str, size_t* start, size_t end);
+void* jstring_to_unknown(char* str, size_t* start, size_t end, enum payload_type* t);
 
-size_t jstring_to_int(char* str, size_t start, size_t end){
+size_t jstring_to_int(char* str, size_t* start, size_t end){
 	size_t out = 0;
-	for(size_t i = start; i < end; i++){
+	for(size_t i = *start; i < end; i++){
 		size_t digit = str[i] - '0';
 		if(digit > 9){
-			//error!!
-			fprintf(stderr, "Error: unexpected non-numeric character in integer\n");
-			exit(1);
+			*start = i;
+			return out;
 		}else{
 			out *= 10;
 			out += digit;
 		}
 	}
-	return out;
+	fprintf(stderr, "Error: no more characters, was parsing integer\n");
+	exit(1);
 }
-char* jstring_to_string(char* str, size_t start, size_t end){
+char* jstring_to_string(char* str, size_t* start, size_t end){
 	//"<str>" -> <str>
-	char* out = malloc(end - start - 1);	
+	ssize_t endq = index_of_next(str, '"', *start + 1, end);
+	if(endq == -1){
+		fprintf(stderr, "Error: no more characters, was parsing string\n");
+		exit(1);
+	}
+	char* out = malloc(endq - *start - 1);	
 	//length: end - start - 2 + null term
-	strncpy(out, str + start + 1, end - start - 1);
-	out[end - start - 2] = 0;
+	strncpy(out, str + *start + 1, endq - *start - 1);
+	out[endq - *start - 2] = 0;
+	*start = endq + 1;
 	return out;
 }
-struct node* jstring_to_node(char* str, size_t start, size_t end){
+struct node* jstring_to_node(char* str, size_t* start, size_t end){
 	struct node* out = malloc(sizeof(struct node));
-	ssize_t loc = index_of_next(str, ':', start, end);
-	if(loc == -1){
-		fprintf(stderr, "Error: not a pair\n");
+	out->title = jstring_to_string(str, start, end);
+	if(str[*start] != ':'){
+		fprintf(stderr, "Error: key not followed by value\n");
+		exit(1);
 	}
-	out->title = jstring_to_string(str, start, loc);
-	out->data = jstring_to_unknown(str, loc + 1, end, &out->type);
+	*start = *start + 1;
+	out->data = jstring_to_unknown(str, start, end, &out->type);
 	out->next = NULL;
 	return out;
 }
-struct node* jstring_to_anode(char* str, size_t start, size_t end){
+struct node* jstring_to_anode(char* str, size_t* start, size_t end){
 	struct node* out = malloc(sizeof(struct node));
 	out->title = NULL; //anonymous node (i.e. array element)
 	out->data = jstring_to_unknown(str, start, end, &out->type);
 	out->next = NULL;
 	return out;
 }
-struct json* jstring_to_array(char* str, size_t start, size_t end){
-	if(str[start] != '[' || str[end - 1] != ']'){
+struct json* jstring_to_array(char* str, size_t* start, size_t end){
+	if(str[*start] != '['){
 		fprintf(stderr, "Error: not an array\n");
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
-	size_t curr = start + 1;
 	while (true){
-		ssize_t loc = index_of_next(str, ',', curr, end);
-		if(loc == -1){
-			struct node* n = jstring_to_anode(str, curr, end - 1);
-			json_append(out, n);
-			break;
-		}
-		struct node* n = jstring_to_anode(str, curr, loc);
+		struct node* n = jstring_to_anode(str, start, end);
 		json_append(out, n);
-		curr = loc + 1;
+		if(str[*start++] == ','){
+
+		}else if(str[*start++] == ']'){
+			break;
+		}else{
+			fprintf(stderr, "Error: not an array\n");
+			exit(1);
+		}
 	}
 	return out;
 		
 }
-void* jstring_to_unknown(char* str, size_t start, size_t end, enum payload_type* t){
-	if(start == end){
-		fprintf(stderr, "Error: missing field\n");
+void* jstring_to_unknown(char* str, size_t* start, size_t end, enum payload_type* t){
+	if(*start == end){
+		fprintf(stderr, "Error: no more characters, was parsing field\n");
+		exit(1);
+		
 	}
-	if(str[start] == '"'){
+	if(str[*start] == '"'){
 		*t = STRING;
 		return jstring_to_string(str, start, end);
-	}else if(str[start] >= '0' && str[start] <= '9'){
+	}else if(str[*start] >= '0' && str[*start] <= '9'){
 		*t = INT;
 		size_t i = jstring_to_int(str, start, end);
 		size_t* ii = malloc(sizeof(size_t));
 		*ii = i;
 		return ii;
-	}else if(str[start] == '{'){
+	}else if(str[*start] == '{'){
 		*t = JSON;
 		return jstring_to_json(str, start, end);
-	}else if(str[start] == '['){
+	}else if(str[*start] == '['){
 		*t = ARRAY;
 		return jstring_to_array(str, start, end);
 	}else{
@@ -139,24 +148,23 @@ void* jstring_to_unknown(char* str, size_t start, size_t end, enum payload_type*
 	}
 
 }
-struct json* jstring_to_json(char* str, size_t start, size_t end){
-	//[start, end)
-	if(str[start] != '{' || str[end - 1] != '}'){
-		fprintf(stderr, "Error: not a JSON\n");
+struct json* jstring_to_json(char* str, size_t* start, size_t end){
+	if(str[*start] != '{'){
+		fprintf(stderr, "Error: not an object\n");
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
-	size_t curr = start + 1;
 	while (true){
-		ssize_t loc = index_of_next(str, ',', curr, end);
-		if(loc == -1){
-			struct node* n = jstring_to_node(str, curr, end - 1);
-			json_append(out, n);
-			break;
-		}
-		struct node* n = jstring_to_node(str, curr, loc);
+		struct node* n = jstring_to_anode(str, start, end);
 		json_append(out, n);
-		curr = loc + 1;
+		if(str[*start++] == ','){
+
+		}else if(str[*start++] == '}'){
+			break;
+		}else{
+			fprintf(stderr, "Error: not an object\n");
+			exit(1);
+		}
 	}
 	return out;
 }
@@ -180,6 +188,7 @@ int main(int arg){
 	printf("%c %d\n", dat[q + 7], dat[q + 7]);
 	//q + 8 is the first real character
 	printf("%c %d\n", dat[q + 8], dat[q + 8]);
-	struct json* j = jstring_to_json(dat, 8, q + 3]);
+	size_t p = 8;
+	struct json* j = jstring_to_json(dat, &p, q + 3);
 
 }
