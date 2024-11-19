@@ -75,10 +75,10 @@ char* jstring_to_string(char* str, size_t* start, size_t end){
 		fprintf(stderr, "Error: no more characters, was parsing string\n");
 		exit(1);
 	}
-	char* out = malloc(endq - *start - 1);	
+	char* out = malloc(endq - *start);	
 	//length: end - start - 2 + null term
 	strncpy(out, str + *start + 1, endq - *start - 1);
-	out[endq - *start - 2] = 0;
+	out[endq - *start - 1] = 0;
 	*start = endq + 1;
 	return out;
 }
@@ -107,12 +107,13 @@ struct json* jstring_to_array(char* str, size_t* start, size_t end){
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
+	(*start)++;
 	while (true){
 		struct node* n = jstring_to_anode(str, start, end);
 		json_append(out, n);
-		if(str[*start++] == ','){
-
-		}else if(str[*start++] == ']'){
+		if(str[*start] == ','){
+			(*start)++;
+		}else if(str[(*start)++] == ']'){
 			break;
 		}else{
 			fprintf(stderr, "Error: not an array\n");
@@ -154,12 +155,13 @@ struct json* jstring_to_json(char* str, size_t* start, size_t end){
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
+	(*start)++;
 	while (true){
-		struct node* n = jstring_to_anode(str, start, end);
+		struct node* n = jstring_to_node(str, start, end);
 		json_append(out, n);
-		if(str[*start++] == ','){
-
-		}else if(str[*start++] == '}'){
+		if(str[*start] == ','){
+			(*start)++;
+		}else if(str[(*start)++] == '}'){
 			break;
 		}else{
 			fprintf(stderr, "Error: not an object\n");
@@ -189,6 +191,6 @@ int main(int arg){
 	//q + 8 is the first real character
 	printf("%c %d\n", dat[q + 8], dat[q + 8]);
 	size_t p = 8;
-	struct json* j = jstring_to_json(dat, &p, q + 3);
+	struct json* j = jstring_to_json(dat, &p, q + 8);
 
 }
