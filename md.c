@@ -180,9 +180,6 @@ int main(int arg){
 	printf("%c %d\n", dat[q + 7], dat[q + 7]);
 	//q + 8 is the first real character
 	printf("%c %d\n", dat[q + 8], dat[q + 8]);
-	char cool[100] = "{\"yo\":12345}";
-	struct json* j = jstring_to_json(cool, 0, strlen(cool));
-	char cool2[100] = "[1,2,\"you\",3]";
-	j = jstring_to_array(cool2, 0, strlen(cool2));
+	struct json* j = jstring_to_json(dat, 8, q + 3]);
 
 }
