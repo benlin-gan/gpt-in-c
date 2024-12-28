@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
@@ -130,3 +131,32 @@ void sa(struct sablock* s, mat* ctx){
 	return madd(ctx, dctx);
 }
 */
+static int* offsets = NULL;
+static char* tokens = NULL;
+static int olength = -1;
+static int tlength = -1;
+void init_tokenizer(char* opath, char* tpath){
+	if(offsets == NULL || tokens == NULL){
+		int ofd = open(opath, O_RDONLY);
+		int tfd = open(tpath, O_RDONLY);
+		struct stat s;	
+		fstat(ofd, &s);
+		olength = s.st_size; //128256 in llama-3.1-8b-instruct
+		fstat(tfd, &s);
+		tlength = s.st_size; //840632 in llama-3.1-8b-instruct
+		offsets = malloc(olength * sizeof(int));
+		read(ofd, offsets, olength * sizeof(int));
+		tokens = malloc(tlength);
+		read(tfd, tokens, tlength);
+	}
+}
+char* tokenize(int i){
+	init_tokenizer("llama-3.1-8b-instruct-offsets.txt", "llama-3.1-8b-instruct-tokens.txt");
+	int start = i == 0 ? 0 : offsets[i - 1];	
+	int end = offsets[i];
+	int length = end - start;
+	char* out = malloc(length + 1);
+	memcpy(out, tokens + start, length);
+	out[length] = '\0';
+	return out;
+}

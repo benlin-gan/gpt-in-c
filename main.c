@@ -59,4 +59,9 @@ int main(int arg, char** argv){
 	print_mat(&t);
 	to_npy(&t, "t.npy");
 
+	printf("%s\n", tokenize(128000));
+	printf("%s\n", tokenize(2000));
+	printf("%s\n", tokenize(279));
+	printf("%s\n", tokenize(1274));
+
 }

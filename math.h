@@ -24,5 +24,6 @@ void sa(struct sablock* s, mat* ctx);
 void print_bfloat(bfloat16 b);	
 void print_mat(mat* m);
 void to_npy(mat* m, char* path);
+char* tokenize(int);
 bfloat16 truncate_f32(float);
 
