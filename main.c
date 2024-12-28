@@ -6,8 +6,9 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <stdlib.h>
 int main(int arg, char** argv){	
-	int fd = open("model-00002-of-00004.safetensors", O_RDONLY);
+	int fd = open("model-00001-of-00004.safetensors", O_RDONLY);
 	if(fd == -1){
 		perror("open");
 		return 1;
@@ -32,5 +33,30 @@ int main(int arg, char** argv){
 	print_titles(j);
 	bfloat16 a = *(bfloat16*) (dat + q + 8);
 	print_bfloat(a);
+	mat r;
+	r.M = 2;
+	r.N = 2;
+	r.buff = malloc(4 * sizeof(bfloat16));
+	r.buff[0] = truncate_f32(0.0);
+	r.buff[1] = truncate_f32(1.0);
+	r.buff[2] = truncate_f32(1.0);
+	r.buff[3] = truncate_f32(1.0);
+	puts("\n\n");
+	print_mat(&r);
+	mat s;
+	s.M = 2;
+	s.N = 2;
+	s.buff = malloc(4 * sizeof(bfloat16));
+	s.buff[0] = truncate_f32(34.0);
+	s.buff[1] = truncate_f32(8.0);
+	s.buff[2] = truncate_f32(55.0);
+	s.buff[3] = truncate_f32(13.0);
+	puts("\n\n");
+	print_mat(&s);
+	mat t;
+	mm(&r, &s, &t);
+	puts("\n\n");
+	print_mat(&t);
+	to_npy(&t, "t.npy");
 
 }
