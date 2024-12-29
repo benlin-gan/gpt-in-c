@@ -54,7 +54,7 @@ void to_npy(mat* m, char* path){
 		}
 	}
 }
-void mm(mat* a, mat* b, mat* c){
+void mm(const mat* a, const mat* b, mat* c){
 	if(a->N != b->M){
 		fprintf(stderr, "Dimension Error: a has %zu x %zu and b has %zu x %zu\n", a->M, a->N, b->M, b->N);
 		exit(1);
@@ -118,7 +118,7 @@ void ro(mat* a, size_t hdim){
 	}
 
 }
-void sa(struct sablock* s, mat* ctx){
+void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 	//WTF
 
 	//ctx : (d, seqlen)
@@ -126,9 +126,9 @@ void sa(struct sablock* s, mat* ctx){
 	mat qc, kc, vc;
 	size_t seqlen = ctx->N;
 
-	mm(&s->q, ctx, &qc);
-	mm(&s->k, ctx, &kc);
-	mm(&s->v, ctx, &vc);
+	mm(q, ctx, &qc);
+	mm(k, ctx, &kc);
+	mm(v, ctx, &vc);
 	//qc : 4096 x seqlen => 4 x 8 x 128 x seqlen
 	//kc : 1024 x seqlen => 8 x 128 x seqlen
 	//vc : 1024 x seqlen => 8 x 128 x seqlen
@@ -224,7 +224,7 @@ void sa(struct sablock* s, mat* ctx){
 		for(size_t t = 0; t < seqlen; t++){
 			float curr = to_float32(ctx->buff[i * 32 * 128 + t]);
 			for(size_t h = 0; h < 32 * 128; h++){
-				curr += to_float32(s->o.buff[i * 32 * 128 + h]) 
+				curr += to_float32(o->buff[i * 32 * 128 + h]) 
 				      * to_float32(preo.buff[h * 32 * 128 + t]);
 			}
 			ctx->buff[i * 32 * 128 + t] = truncate_f32(curr);
@@ -234,7 +234,7 @@ void sa(struct sablock* s, mat* ctx){
 float silu(float f){
 	return f/(1 + expf(-f));
 }
-void udg(mat* gate, mat* up, mat* down, mat* ctx){
+void udg(const mat* gate, const mat* up, const mat* down, mat* ctx){
 	//ctx: d x seqlen
 	//up, gate: D x d
 	//down : d x D
@@ -297,7 +297,7 @@ char* tokenize(int i){
 	out[length] = '\0';
 	return out;
 }
-mat* embed(int* s, int seqlen, char* embs){
+mat* embed(int* s, int seqlen, const char* embs){
 	mat* out = malloc(sizeof(mat));
 	out->M = 4096; //llama hidden
 	out->N = seqlen;
@@ -310,7 +310,7 @@ mat* embed(int* s, int seqlen, char* embs){
 	}
 	return out;
 }
-void rms_norm(mat* m, mat* weights, float epsi){
+void rms_norm(mat* m, const mat* weights, float epsi){
 	//m : d x seqlen
 	float* rms = malloc(m->N * sizeof(float));
 	for(size_t i = 0; i < m->N; i++){
