@@ -13,7 +13,7 @@ int main(int arg, char** argv){
 		perror("open");
 		return 1;
 	}
-	char* dat = mmap(NULL, 2000000000, PROT_READ, MAP_PRIVATE, fd, 0);
+	char* dat = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, fd, 0);
 	size_t q = *(size_t*)dat;
 	printf("%zu\n", q);
 	write(1, dat + 8, q - 5);
@@ -65,14 +65,19 @@ int main(int arg, char** argv){
 	printf("%s\n", tokenize(279));
 	printf("%s\n", tokenize(1274));
 
+
+	//prompt: "<|begin_of_text|>for the people"
 	int prompt[4];
 	prompt[0] = 128000;
 	prompt[1] = 2000;
 	prompt[2] = 279;
 	prompt[3] = 1274;
-	mat* u = embed(prompt, 4, &dat[q + 8]);	
+	char* base = &dat[q + 8];	
+	mat* u = embed(prompt, 4, base);	
 	to_npy(u, "embed.npy");
-	rms_norm(u, &dat[q + 8 + 1050673152], 1e-5); 
-	to_npy(u, "norm0.npy");
 
+	mat* z = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
+	rms_norm(u, z, 1e-5); 
+	to_npy(u, "norm0new.npy");
+	to_npy(z, "iln.npy");
 }

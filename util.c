@@ -1,4 +1,5 @@
 #include "util.h"
+#include "json.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -309,7 +310,7 @@ mat* embed(int* s, int seqlen, char* embs){
 	}
 	return out;
 }
-void rms_norm(mat* m, char* weights, float epsi){
+void rms_norm(mat* m, mat* weights, float epsi){
 	//m : d x seqlen
 	float* rms = malloc(m->N * sizeof(float));
 	for(size_t i = 0; i < m->N; i++){
@@ -322,7 +323,7 @@ void rms_norm(mat* m, char* weights, float epsi){
 		rms[i] += epsi;
 		rms[i] = sqrt(rms[i]);
 	}
-	bfloat16* w = (bfloat16*) weights;
+	bfloat16* w = weights->buff;
 	for(size_t i = 0; i < m->N; i++){
 		for(size_t j = 0; j < m->M; j++){
 			float f = to_float32(m->buff[j * m->N + i]);
@@ -330,4 +331,27 @@ void rms_norm(mat* m, char* weights, float epsi){
 			m->buff[j * m->N + i] = truncate_f32(f);
 		}
 	}
+}
+mat* extract_mat(struct json* j, char* base, char* name){
+	struct node* curr = j->start;
+	bool found = false;
+	for(; curr != NULL; curr = curr->next){
+		if(strcmp(curr->title, name) == 0){
+			found = true;
+			break;
+		}
+	}
+	if(!found){
+		return NULL;
+	}
+	mat* out = malloc(sizeof(mat));
+	struct json* fields = (struct json *) curr->data; 
+	struct json* shape_array = (struct json *) fields->start->next->data;
+	struct json* offsets_array = (struct json *) fields->start->next->next->data;
+	out->M = *(size_t*) shape_array->start->data;
+	struct node* npossibly = shape_array->start->next;
+	out->N = npossibly != NULL ? *(size_t*)npossibly->data : 1;
+	out->buff = (bfloat16*) (base + *(size_t*) offsets_array->start->data);
+	return out;
+	
 }
