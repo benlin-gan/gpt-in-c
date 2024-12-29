@@ -46,7 +46,7 @@ void to_npy(mat* m, char* path){
 	write(fd, lol, 10);
 	write(fd, header, hlen + k + 1);
 	for(size_t i = 0; i < m->M; i++){
-		for(size_t j = 0; j < m->M; j++){
+		for(size_t j = 0; j < m->N; j++){
 			float f = to_float32(m->buff[i * m->N + j]);
 			write(fd, (char*) &f, 4);
 		}
@@ -148,6 +148,8 @@ void init_tokenizer(char* opath, char* tpath){
 		read(ofd, offsets, olength * sizeof(int));
 		tokens = malloc(tlength);
 		read(tfd, tokens, tlength);
+		close(ofd);
+		close(tfd);
 	}
 }
 char* tokenize(int i){
@@ -158,5 +160,18 @@ char* tokenize(int i){
 	char* out = malloc(length + 1);
 	memcpy(out, tokens + start, length);
 	out[length] = '\0';
+	return out;
+}
+mat* embed(int* s, int seqlen, char* embs){
+	mat* out = malloc(sizeof(mat));
+	out->M = 4096; //llama hidden
+	out->N = seqlen;
+	out->buff = malloc(out->M * out->N * sizeof(bfloat16));
+	bfloat16* e = (bfloat16 *) embs;
+	for(size_t i = 0; i < out->N; i++){
+		for(size_t j = 0; j < out->M; j++){
+			out->buff[j * out->N + i] = e[s[i] * out->M + j];
+		}
+	}
 	return out;
 }

@@ -1,4 +1,6 @@
 *safetensors
+*.npy
 main
 main-debug
+base/*
 .objs

@@ -13,7 +13,7 @@ int main(int arg, char** argv){
 		perror("open");
 		return 1;
 	}
-	char* dat = mmap(NULL, 10000, PROT_READ, MAP_PRIVATE, fd, 0);
+	char* dat = mmap(NULL, 2000000000, PROT_READ, MAP_PRIVATE, fd, 0);
 	size_t q = *(size_t*)dat;
 	printf("%zu\n", q);
 	write(1, dat + 8, q - 5);
@@ -26,13 +26,14 @@ int main(int arg, char** argv){
 	printf("%c %d\n", dat[q + 6], dat[q + 6]);
 	printf("%c %d\n", dat[q + 7], dat[q + 7]);
 	//q + 8 is the first real character
-	printf("%c %zu\n", dat[q + 8], (size_t) dat[q + 8]);
-	printf("%c %zu\n", dat[q + 8], (size_t) dat[q + 9]);
+	printf("%c %d\n", dat[q + 8], dat[q + 8]);
+	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 8]));
+	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 10]));
+	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 12]));
+	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 14]));
 	size_t p = 8;
 	struct json* j = jstring_to_json(dat, &p, q + 7);
 	print_titles(j);
-	bfloat16 a = *(bfloat16*) (dat + q + 8);
-	print_bfloat(a);
 	mat r;
 	r.M = 2;
 	r.N = 2;
@@ -63,5 +64,13 @@ int main(int arg, char** argv){
 	printf("%s\n", tokenize(2000));
 	printf("%s\n", tokenize(279));
 	printf("%s\n", tokenize(1274));
+
+	int prompt[4];
+	prompt[0] = 128000;
+	prompt[1] = 2000;
+	prompt[2] = 279;
+	prompt[3] = 1274;
+	mat* u = embed(prompt, 4, &dat[q + 8]);	
+	to_npy(u, "embed.npy");
 
 }
