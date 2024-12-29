@@ -5,7 +5,7 @@ EXE1=main
 EXES_STUDENT=$(EXE1)
 
 # list object file dependencies for each
-OBJS=json.o math.o main.o
+OBJS=json.o util.o main.o
 
 # set up compiler
 CC = clang

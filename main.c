@@ -1,5 +1,5 @@
 #include "json.h"
-#include "math.h"
+#include "util.h"
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -72,5 +72,7 @@ int main(int arg, char** argv){
 	prompt[3] = 1274;
 	mat* u = embed(prompt, 4, &dat[q + 8]);	
 	to_npy(u, "embed.npy");
+	rms_norm(u, &dat[q + 8 + 1050673152], 1e-5); 
+	to_npy(u, "norm0.npy");
 
 }

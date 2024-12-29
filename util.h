@@ -28,4 +28,5 @@ char* tokenize(int);
 bfloat16 truncate_f32(float);
 float to_float32(bfloat16);
 mat* embed(int*, int, char*);
+void rms_norm(mat*, char*, float);
 
