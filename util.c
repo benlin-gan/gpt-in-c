@@ -230,6 +230,41 @@ void sa(struct sablock* s, mat* ctx){
 		}
 	}
 }
+float silu(float f){
+	return f/(1 + expf(-f));
+}
+void udg(mat* gate, mat* up, mat* down, mat* ctx){
+	//ctx: d x seqlen
+	//up, gate: D x d
+	//down : d x D
+	//D > d
+	size_t D = up->M;
+	size_t d = up->N;
+	size_t seqlen = ctx->N;
+	float* inter = malloc(sizeof(float) * D * seqlen);
+	//inter: D x seqlen 
+	for(size_t i = 0; i < D; i++){
+		for(size_t t = 0; t < seqlen; t++){
+			float u = 0.0;
+			float g = 0.0;
+			for(size_t j = 0; j < d; j++){
+				u += to_float32(up->buff[i * D + j]) * to_float32(ctx->buff[j * d + t]);
+				g += to_float32(gate->buff[i * D + j]) * to_float32(ctx->buff[j * d + t]);
+			}
+			inter[i * D + t] = silu(g) * u;
+		}
+	}
+
+	for(size_t j = 0; j < d; j++){
+		for(size_t t = 0; t < seqlen; t++){
+			float acc = ctx->buff[j * d + t];
+			for(size_t i = 0; i < D; i++){
+				acc += to_float32(down->buff[j * d + i]) * inter[i * D + t]; 
+			}
+			ctx->buff[j * d + t] = truncate_f32(acc);
+		}
+	}
+}
 static int* offsets = NULL;
 static char* tokens = NULL;
 static int olength = -1;
