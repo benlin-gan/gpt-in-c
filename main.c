@@ -76,8 +76,15 @@ int main(int arg, char** argv){
 	mat* u = embed(prompt, 4, base);	
 	to_npy(u, "embed.npy");
 
-	mat* z = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
+	const mat* z = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
 	rms_norm(u, z, 1e-5); 
-	to_npy(u, "norm0new.npy");
-	to_npy(z, "iln.npy");
+	to_npy(u, "norm0.npy");
+
+	const mat* q0 = extract_mat(j, base, "model.layers.0.self_attn.q_proj.weight");
+	const mat* k0 = extract_mat(j, base, "model.layers.0.self_attn.k_proj.weight");
+	const mat* v0 = extract_mat(j, base, "model.layers.0.self_attn.v_proj.weight");
+	const mat* o0 = extract_mat(j, base, "model.layers.0.self_attn.o_proj.weight");
+	sa(q0, k0, v0, o0, u);
+	to_npy(u, "sa0.npy");
+
 }

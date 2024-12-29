@@ -222,12 +222,12 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 	free(attns);
 	for(size_t i = 0; i < 32 * 128; i++){
 		for(size_t t = 0; t < seqlen; t++){
-			float curr = to_float32(ctx->buff[i * 32 * 128 + t]);
+			float curr = to_float32(ctx->buff[i * seqlen + t]);
 			for(size_t h = 0; h < 32 * 128; h++){
 				curr += to_float32(o->buff[i * 32 * 128 + h]) 
-				      * to_float32(preo.buff[h * 32 * 128 + t]);
+				      * to_float32(preo.buff[h * seqlen + t]);
 			}
-			ctx->buff[i * 32 * 128 + t] = truncate_f32(curr);
+			ctx->buff[i * seqlen + t] = truncate_f32(curr);
 		}
 	}
 }
@@ -332,7 +332,7 @@ void rms_norm(mat* m, const mat* weights, float epsi){
 		}
 	}
 }
-mat* extract_mat(struct json* j, char* base, char* name){
+const mat* extract_mat(struct json* j, char* base, char* name){
 	struct node* curr = j->start;
 	bool found = false;
 	for(; curr != NULL; curr = curr->next){

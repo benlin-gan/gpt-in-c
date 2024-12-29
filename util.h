@@ -24,4 +24,4 @@ bfloat16 truncate_f32(float);
 float to_float32(bfloat16);
 mat* embed(int*, int, const char*);
 void rms_norm(mat*, const mat*, float);
-mat* extract_mat(struct json*, char* base, char* name);
+const mat* extract_mat(struct json*, char* base, char* name);
