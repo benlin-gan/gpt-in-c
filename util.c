@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
@@ -335,12 +335,15 @@ void udg(const mat* gate, const mat* up, const mat* down, mat* ctx){
 				float a = to_float32(down->buff[j * D + i]);
 				float b = inter[i * seqlen + t]; 
 				acc += a * b;
-				if(j == 0 && t == 0) printf("%f %f %f %f\n", a, b, a * b, acc);
+				//if(j == 0 && t == 0) printf("%f %f %f %f\n", a, b, a * b, acc);
 			}
 			ctx->buff[j * seqlen + t] = truncate_f32(acc);
 		}
 	}
+	free(inter);
+#if PRINT_DEBUG
 	to_npy(ctx, "after.npy");
+#endif
 }
 static int* offsets = NULL;
 static char* tokens = NULL;
