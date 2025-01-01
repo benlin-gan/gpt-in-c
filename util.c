@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
-#define PRINT_DEBUG 0
+#define PRINT_DEBUG 1
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
@@ -216,8 +216,8 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 						  + q; 
 						size_t ink = 
 							h * 128 * seqlen
-						  + k * seqlen
-						  + i;
+						  + i * seqlen
+						  + k;
 						attns[in] += to_float32(qc.buff[inq]) * to_float32(kc.buff[ink]);
 					}
 					attns[in] /= sqrt(128.0);
