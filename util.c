@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
+#define PRINT_DEBUG 1
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
@@ -30,14 +31,35 @@ void print_mat(mat* m){
 		printf("\n");
 	}
 } 
-void to_npy(mat* m, char* path){
-	int fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 00644);
+float* to_float_buffer(bfloat16* buf, size_t s){
+	bfloat16* out = malloc(2 * s * sizeof(bfloat16));
+	for(size_t i = 0; i < s; i++){
+		out[2 * i] = 0;
+		out[2 * i + 1] = buf[i];
+	}
+	return (float*) out;
+}
+void write_npy_header(int fd, size_t* shape, size_t shsize){
 	char lol[10] = "xNUMPY";
 	lol[0] = -109; 
 	lol[6] = 1; //major version
 	lol[7] = 0; //minor version
 	char header[65536];
-	sprintf(header, "{'descr': '<f4', 'fortran_order': False, 'shape': (%zu, %zu), }", m->M, m->N);
+	char slist[1000];
+	size_t pos = 0;
+	for(size_t i = 0; i < shsize; i++){
+		size_t len = sprintf(slist + pos, "%zu", shape[i]);
+		pos += len;
+		if(i != shsize - 1){
+		   	sprintf(slist + pos, " ,");
+			pos += 2;
+		}
+	}
+	if(shsize == 1){
+		slist[pos++] = ',';
+	}
+	slist[pos] = '\0';
+	sprintf(header, "{'descr': '<f4', 'fortran_order': False, 'shape': (%s), }", slist);
 	unsigned short hlen = strlen(header);
 	short k = 16 - (hlen + 11) % 16;
 	for(short i = 0; i < k; i++){
@@ -47,12 +69,25 @@ void to_npy(mat* m, char* path){
 	*((unsigned short*) (lol + 8)) = (hlen + k + 1);
 	write(fd, lol, 10);
 	write(fd, header, hlen + k + 1);
-	for(size_t i = 0; i < m->M; i++){
-		for(size_t j = 0; j < m->N; j++){
-			float f = to_float32(m->buff[i * m->N + j]);
-			write(fd, (char*) &f, 4);
-		}
+}
+void to_npy(const mat* m, char* path){
+	int fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 00644);
+	size_t sh[2];
+	sh[0] = m->M;
+	sh[1] = m->N;
+	write_npy_header(fd, sh, 2);
+	float* out = to_float_buffer(m->buff, sh[0] * sh[1]);
+	write(fd, out, sh[0] * sh[1] * 4);
+	free(out);
+}
+void to_fnpy(const float* f, size_t* shape, size_t shsize, char* path){
+	int fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 00644);
+	size_t l = 4;
+	for(size_t i = 0; i < shsize; i++){
+		l *= shape[i];	
 	}
+	write_npy_header(fd, shape, shsize);
+	write(fd, f, l);
 }
 void mm(const mat* a, const mat* b, mat* c){
 	if(a->N != b->M){
@@ -93,11 +128,17 @@ void cs(float* c, float* s, float base, size_t d, size_t t){
 		float freq = powf(base, power);
 		float cf = cosf(t * freq);
 		float sf = sinf(t * freq);
-		c[2 * i] = cf;
-		c[2 * i + 1] = cf;
-		s[2 * i] = -sf;
-		s[2 * i + 1] = sf;
+		c[i] = cf;
+		c[i + hd] = cf;
+		s[i] = -sf;
+		s[i + hd] = sf;
 	}
+#if PRINT_DEBUG
+	char* fname;
+   	asprintf(&fname, "cos%zu.npy", t);
+	to_fnpy(c, &d, 1, fname);
+	free(fname);
+#endif
 }
 void ro(mat* a, size_t hdim){
 	// a : (hdim * numh, seqlen)
@@ -111,7 +152,7 @@ void ro(mat* a, size_t hdim){
 		for(size_t h = 0; h < numh; h++){
 			for(size_t i = 0; i < hdim; i++){
 				float f = to_float32(a->buff[h * hdim * seqlen + i * seqlen + t]);	
-				float g = to_float32(a->buff[h * hdim * seqlen + (i ^ 1) * seqlen + t]);
+				float g = to_float32(a->buff[h * hdim * seqlen + (i ^ (hdim/2)) * seqlen + t]);
 				a->buff[h * hdim * seqlen + i * seqlen + t] = truncate_f32(f * c[i] + g * s[i]);	
 			}
 		}
@@ -129,13 +170,23 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 	mm(q, ctx, &qc);
 	mm(k, ctx, &kc);
 	mm(v, ctx, &vc);
+
+	to_npy(&qc, "qc0.npy");
+	to_npy(&kc, "kc0.npy");
 	//qc : 4096 x seqlen => 4 x 8 x 128 x seqlen
 	//kc : 1024 x seqlen => 8 x 128 x seqlen
 	//vc : 1024 x seqlen => 8 x 128 x seqlen
 	ro(&qc, 128);
+	to_npy(&qc, "qcr0.npy");
 	ro(&kc, 128);
+	to_npy(&kc, "kcr0.npy");
 
-	//attns: 32 x seqlen x seqlen
+	//attns: 4 x 8 x seqlen x seqlen
+	size_t shape[10];
+	shape[0] = 4;
+	shape[1] = 8;
+	shape[2] = seqlen;
+	shape[3] = seqlen;
 	float* attns = malloc(32 * seqlen * seqlen * sizeof(float));
 	for(size_t g = 0; g < 4; g++){
 		for(size_t h = 0; h < 8; h++){
@@ -147,7 +198,10 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 				        + k * seqlen 
 					    + q;
 					attns[in] = 0.0;
-					if(k > q) continue;	
+					if(k > q){
+						attns[in] = -INFINITY;
+					   	continue;	
+					}
 					for(size_t i = 0; i < 128; i++){
 						size_t inq = 
 							g * 8 * 128 * seqlen 
@@ -160,16 +214,19 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 						  + i;
 						attns[in] += to_float32(qc.buff[inq]) * to_float32(kc.buff[ink]);
 					}
+					attns[in] /= sqrt(128.0);
 				}
 			}
 		}
 	}
+	to_fnpy(attns, shape, 4, "attn0.npy");
 	//softmax
 	for(size_t g = 0; g < 4; g++){
 		for(size_t h = 0; h < 8; h++){
 			for(size_t q = 0; q < seqlen; q++){
-				size_t norm = 0.0;
+				float norm = 0.0;
 				for(size_t k = 0; k < seqlen; k++){
+					if(k > q) continue;
 					size_t in = 
 						  g * 8 * seqlen * seqlen 
 						+ h * seqlen * seqlen
@@ -184,16 +241,15 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 						+ h * seqlen * seqlen
 				        + k * seqlen 
 					    + q;
-					attns[in] /= norm;
+					if(k > q) attns[in] = 0.0;
+					else attns[in] /= norm;
 				}
 			}
 		}
 	}
-	mat preo;
-	//preo: 32 x 128 x seqlen
-	preo.M = 32 * 128;
-	preo.N = seqlen;
-	preo.buff = malloc(32 * 128 * seqlen * sizeof(bfloat16));
+	to_fnpy(attns, shape, 4, "smax0.npy");
+	//preo: 4 x 8 x 128 x seqlen
+	float* preo = malloc(32 * 128 * seqlen * sizeof(float));
 	for(size_t g = 0; g < 4; g++){
 		for(size_t h = 0; h < 8; h++){
 			for(size_t i = 0; i < 128; i++){
@@ -212,9 +268,9 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 						           + h * seqlen * seqlen
 								   + v * seqlen
 								   + q;
-						acc += to_float32(vc.buff[inv]) * to_float32(attns[ina]);
+						acc += to_float32(vc.buff[inv]) * attns[ina];
 					}
-					preo.buff[in] = truncate_f32(acc);
+					preo[in] = acc;
 				}
 			}
 		} 
@@ -225,11 +281,12 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 			float curr = to_float32(ctx->buff[i * seqlen + t]);
 			for(size_t h = 0; h < 32 * 128; h++){
 				curr += to_float32(o->buff[i * 32 * 128 + h]) 
-				      * to_float32(preo.buff[h * seqlen + t]);
+				      * preo[h * seqlen + t];
 			}
 			ctx->buff[i * seqlen + t] = truncate_f32(curr);
 		}
 	}
+	free(preo);
 }
 float silu(float f){
 	return f/(1 + expf(-f));
@@ -249,20 +306,20 @@ void udg(const mat* gate, const mat* up, const mat* down, mat* ctx){
 			float u = 0.0;
 			float g = 0.0;
 			for(size_t j = 0; j < d; j++){
-				u += to_float32(up->buff[i * D + j]) * to_float32(ctx->buff[j * d + t]);
-				g += to_float32(gate->buff[i * D + j]) * to_float32(ctx->buff[j * d + t]);
+				u += to_float32(up->buff[i * d + j]) * to_float32(ctx->buff[j * 4 + t]);
+				g += to_float32(gate->buff[i * d + j]) * to_float32(ctx->buff[j * 4 + t]);
 			}
-			inter[i * D + t] = silu(g) * u;
+			inter[i * seqlen + t] = silu(g) * u;
 		}
 	}
 
 	for(size_t j = 0; j < d; j++){
 		for(size_t t = 0; t < seqlen; t++){
-			float acc = ctx->buff[j * d + t];
+			float acc = ctx->buff[j * 4 + t];
 			for(size_t i = 0; i < D; i++){
-				acc += to_float32(down->buff[j * d + i]) * inter[i * D + t]; 
+				acc += to_float32(down->buff[j * D + i]) * inter[i * seqlen + t]; 
 			}
-			ctx->buff[j * d + t] = truncate_f32(acc);
+			ctx->buff[j * 4 + t] = truncate_f32(acc);
 		}
 	}
 }

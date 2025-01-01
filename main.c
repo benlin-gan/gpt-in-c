@@ -76,15 +76,30 @@ int main(int arg, char** argv){
 	mat* u = embed(prompt, 4, base);	
 	to_npy(u, "embed.npy");
 
-	const mat* z = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
-	rms_norm(u, z, 1e-5); 
+	const mat* zi0 = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
+	rms_norm(u, zi0, 1e-5); 
 	to_npy(u, "norm0.npy");
 
 	const mat* q0 = extract_mat(j, base, "model.layers.0.self_attn.q_proj.weight");
+	to_npy(q0, "q0.npy");
 	const mat* k0 = extract_mat(j, base, "model.layers.0.self_attn.k_proj.weight");
+	to_npy(k0, "k0.npy");
 	const mat* v0 = extract_mat(j, base, "model.layers.0.self_attn.v_proj.weight");
+	to_npy(v0, "v0.npy");
 	const mat* o0 = extract_mat(j, base, "model.layers.0.self_attn.o_proj.weight");
+	to_npy(o0, "o0.npy");
 	sa(q0, k0, v0, o0, u);
 	to_npy(u, "sa0.npy");
+	
+	const mat* zp0 = extract_mat(j, base, "model.layers.0.post_attention_layernorm.weight");
+	rms_norm(u, zp0, 1e-5);
+	to_npy(u, "normp0.npy");
+
+	const mat* down = extract_mat(j, base, "model.layers.0.mlp.down_proj.weight");
+	const mat* gate = extract_mat(j, base, "model.layers.0.mlp.gate_proj.weight");
+	const mat* up = extract_mat(j, base, "model.layers.0.mlp.up_proj.weight");
+
+	udg(gate, up, down, u);
+	to_npy(u, "layer0.npy");
 
 }

@@ -1,6 +1,7 @@
 *safetensors
 *.npy
 *.pt
+*.dict
 main
 main-debug
 base/*

@@ -16,9 +16,10 @@ struct vec{
 typedef struct vec vec;
 void mm(const mat* a, const mat* b, mat* out);
 void sa(const mat* k, const mat* o, const mat* q, const mat* v, mat* ctx);
+void udg(const mat* gate, const mat* up, const mat* down, mat* ctx);
 void print_bfloat(bfloat16 b);	
 void print_mat(mat* m);
-void to_npy(mat* m, char* path);
+void to_npy(const mat* m, char* path);
 char* tokenize(int);
 bfloat16 truncate_f32(float);
 float to_float32(bfloat16);
