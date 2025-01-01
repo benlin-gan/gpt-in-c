@@ -7,8 +7,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <math.h>
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
@@ -176,6 +177,7 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 #if PRINT_DEBUG
 	to_npy(&qc, "qc0.npy");
 	to_npy(&kc, "kc0.npy");
+	to_npy(&vc, "vc0.npy");
 #endif
 	//qc : 4096 x seqlen => 4 x 8 x 128 x seqlen
 	//kc : 1024 x seqlen => 8 x 128 x seqlen
@@ -285,6 +287,13 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 			}
 		} 
 	}
+#if PRINT_DEBUG
+	shape[0] = 4;
+	shape[1] = 8;
+	shape[2] = 128;
+	shape[3] = seqlen;
+	to_fnpy(preo, shape, 4, "preo.npy");
+#endif
 	free(attns);
 	for(size_t i = 0; i < 32 * 128; i++){
 		for(size_t t = 0; t < seqlen; t++){
@@ -433,4 +442,49 @@ const mat* extract_mat(struct json* j, char* base, char* name){
 	out->buff = (bfloat16*) (base + *(size_t*) offsets_array->start->data);
 	return out;
 	
+}
+const mat* get_mat(model* m, char* name){
+	const mat* out = extract_mat(m->j1, m->p1, name);
+	if(out == NULL){
+		out = extract_mat(m->j2, m->p2, name);
+	}
+	if(out == NULL){
+		out = extract_mat(m->j3, m->p3, name);
+	}
+	if(out == NULL){
+		out = extract_mat(m->j4, m->p4, name);
+	}
+	return out;
+}
+model* init_model(){
+	model* out = malloc(sizeof(model));
+	int f1 = open("model-00001-of-00004.safetensors", O_RDONLY); 
+	int f2 = open("model-00002-of-00004.safetensors", O_RDONLY); 
+	int f3 = open("model-00003-of-00004.safetensors", O_RDONLY); 
+	int f4 = open("model-00004-of-00004.safetensors", O_RDONLY); 
+	char* d1 = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, f1, 0);
+	char* d2 = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, f2, 0);
+	char* d3 = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, f3, 0);
+	char* d4 = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, f4, 0);
+	size_t s1 = *(size_t*) d1;
+	size_t s2 = *(size_t*) d2;
+	size_t s3 = *(size_t*) d3;
+	size_t s4 = *(size_t*) d4;
+	size_t ptr = 8;
+	out->j1 = jstring_to_json(d1, &ptr, s1 + 8);
+	out->p1 = d1 + s1 + 8;
+	ptr = 8;
+	out->j2 = jstring_to_json(d2, &ptr, s2 + 8);
+	out->p2 = d2 + s2 + 8;
+	ptr = 8;
+	out->j3 = jstring_to_json(d3, &ptr, s3 + 8);
+	out->p3 = d3 + s3 + 8;
+	ptr = 8;
+	out->j4 = jstring_to_json(d4, &ptr, s4 + 8);
+	out->p4 = d4 + s4 + 8;
+	print_titles(out->j1);
+	print_titles(out->j2);
+	print_titles(out->j3);
+	print_titles(out->j4);
+	return out;
 }

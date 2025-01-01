@@ -8,99 +8,66 @@
 #include <unistd.h>
 #include <stdlib.h>
 int main(int arg, char** argv){	
-	int fd = open("model-00001-of-00004.safetensors", O_RDONLY);
-	if(fd == -1){
-		perror("open");
-		return 1;
-	}
-	char* dat = mmap(NULL, 5000000000, PROT_READ, MAP_PRIVATE, fd, 0);
-	size_t q = *(size_t*)dat;
-	printf("%zu\n", q);
-	write(1, dat + 8, q - 5);
-	printf("\n%c %d\n", dat[q], dat[q]);
-	printf("%c %d\n", dat[q + 1], dat[q + 1]);
-	printf("%c %d\n", dat[q + 2], dat[q + 2]);
-	printf("%c %d\n", dat[q + 3], dat[q + 3]);
-	printf("%c %d\n", dat[q + 4], dat[q + 4]);
-	printf("%c %d\n", dat[q + 5], dat[q + 5]);
-	printf("%c %d\n", dat[q + 6], dat[q + 6]);
-	printf("%c %d\n", dat[q + 7], dat[q + 7]);
-	//q + 8 is the first real character
-	printf("%c %d\n", dat[q + 8], dat[q + 8]);
-	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 8]));
-	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 10]));
-	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 12]));
-	printf("%f\n", to_float32(*(bfloat16*) &dat[q + 14]));
-	size_t p = 8;
-	struct json* j = jstring_to_json(dat, &p, q + 7);
-	print_titles(j);
-	mat r;
-	r.M = 2;
-	r.N = 2;
-	r.buff = malloc(4 * sizeof(bfloat16));
-	r.buff[0] = truncate_f32(0.0);
-	r.buff[1] = truncate_f32(1.0);
-	r.buff[2] = truncate_f32(1.0);
-	r.buff[3] = truncate_f32(1.0);
-	puts("\n\n");
-	print_mat(&r);
-	mat s;
-	s.M = 2;
-	s.N = 2;
-	s.buff = malloc(4 * sizeof(bfloat16));
-	s.buff[0] = truncate_f32(34.0);
-	s.buff[1] = truncate_f32(8.0);
-	s.buff[2] = truncate_f32(55.0);
-	s.buff[3] = truncate_f32(13.0);
-	puts("\n\n");
-	print_mat(&s);
-	//mat t;
-	//mm(&r, &s, &t);
-	//puts("\n\n");
-	//print_mat(&t);
-	//to_npy(&t, "t.npy");
-
-	printf("%s\n", tokenize(128000));
-	printf("%s\n", tokenize(2000));
-	printf("%s\n", tokenize(279));
-	printf("%s\n", tokenize(1274));
-
+	model* m = init_model();
 
 	//prompt: "<|begin_of_text|>for the people"
+	printf("%s", tokenize(128000));
+	printf("%s", tokenize(2000));
+	printf("%s", tokenize(279));
+	printf("%s\n", tokenize(1274));
 	int prompt[4];
 	prompt[0] = 128000;
 	prompt[1] = 2000;
 	prompt[2] = 279;
 	prompt[3] = 1274;
-	char* base = &dat[q + 8];	
-	mat* u = embed(prompt, 4, base);	
+
+
+	mat* u = embed(prompt, 4, m->p1);	
 	to_npy(u, "embed.npy");
-	printf("embed0\n");
-	const mat* zi0 = extract_mat(j, base, "model.layers.0.input_layernorm.weight");
-	rms_norm(u, zi0, 1e-5); 
-	to_npy(u, "norm0.npy");
-	printf("norm0\n");
+	printf("embed\n");
 
-	const mat* q0 = extract_mat(j, base, "model.layers.0.self_attn.q_proj.weight");
-	const mat* k0 = extract_mat(j, base, "model.layers.0.self_attn.k_proj.weight");
-	const mat* v0 = extract_mat(j, base, "model.layers.0.self_attn.v_proj.weight");
-	const mat* o0 = extract_mat(j, base, "model.layers.0.self_attn.o_proj.weight");
+	char name[1024];
+	for(int l = 0; l < 2; l++){
+		sprintf(name, "model.layers.%d.input_layernorm.weight", l);
+		const mat* zi = get_mat(m, name);
+		rms_norm(u, zi, 1e-5); 
+		//to_npy(u, "norm0.npy");
+		printf("norm%d\n", l);
 
-	sa(q0, k0, v0, o0, u);
-	to_npy(u, "sa0.npy");
-	printf("sa0\n");
-	
-	const mat* zp0 = extract_mat(j, base, "model.layers.0.post_attention_layernorm.weight");
-	rms_norm(u, zp0, 1e-5);
-	to_npy(u, "normp0.npy");
-	printf("normp0\n");
+		sprintf(name, "model.layers.%d.self_attn.q_proj.weight", l);
+		const mat* q = get_mat(m, name);
 
-	const mat* down = extract_mat(j, base, "model.layers.0.mlp.down_proj.weight");
-	const mat* gate = extract_mat(j, base, "model.layers.0.mlp.gate_proj.weight");
-	const mat* up = extract_mat(j, base, "model.layers.0.mlp.up_proj.weight");
+		sprintf(name, "model.layers.%d.self_attn.k_proj.weight", l);
+		const mat* k = get_mat(m, name);
 
-	udg(gate, up, down, u);
-	to_npy(u, "layer0.npy");
-	printf("layer0\n");
+		sprintf(name, "model.layers.%d.self_attn.v_proj.weight", l);
+		const mat* v = get_mat(m, name);
 
+		sprintf(name, "model.layers.%d.self_attn.o_proj.weight", l);
+		const mat* o = get_mat(m, name);
+
+		sa(q, k, v, o, u);
+		//to_npy(u, "sa0.npy");
+		printf("sa%d\n", l);
+
+		sprintf(name, "model.layers.%d.post_attention_layernorm.weight", l);
+		const mat* zp = get_mat(m, name);
+		rms_norm(u, zp, 1e-5);
+		//to_npy(u, "normp0.npy");
+		printf("normp%d\n", l);
+
+		sprintf(name, "model.layers.%d.mlp.down_proj.weight", l);
+		const mat* down = get_mat(m, name);
+
+		sprintf(name, "model.layers.%d.mlp.gate_proj.weight", l);
+		const mat* gate = get_mat(m, name);
+
+		sprintf(name, "model.layers.%d.mlp.up_proj.weight", l);
+		const mat* up = get_mat(m, name);
+
+		udg(gate, up, down, u);
+		sprintf(name, "layer%d.npy", l);
+		to_npy(u, name);
+		printf("layer%d\n", l);
+	}
 }
