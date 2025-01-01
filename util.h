@@ -38,4 +38,5 @@ mat* embed(int*, int, const char*);
 void rms_norm(mat*, const mat*, float);
 const mat* extract_mat(struct json*, char* base, char* name);
 const mat* get_mat(model* m, char* name);
+void decode(model* m, const mat* u);
 model* init_model();

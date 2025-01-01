@@ -27,7 +27,7 @@ int main(int arg, char** argv){
 	printf("embed\n");
 
 	char name[1024];
-	for(int l = 0; l < 2; l++){
+	for(int l = 0; l < 32; l++){
 		sprintf(name, "model.layers.%d.input_layernorm.weight", l);
 		const mat* zi = get_mat(m, name);
 		rms_norm(u, zi, 1e-5); 
@@ -69,5 +69,14 @@ int main(int arg, char** argv){
 		sprintf(name, "layer%d.npy", l);
 		to_npy(u, name);
 		printf("layer%d\n", l);
+		decode(m, u);
 	}
+	const mat* norm = get_mat(m, "model.norm.weight");
+	rms_norm(u, norm, 1e-5);
+	to_npy(u, "final_states.npy");
+
+	const mat* head = get_mat(m, "lm_head.weight");
+	mat logits;
+	mm(head, u, &logits);
+	to_npy(u, "logits.npy");
 }

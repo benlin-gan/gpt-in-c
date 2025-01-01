@@ -482,9 +482,44 @@ model* init_model(){
 	ptr = 8;
 	out->j4 = jstring_to_json(d4, &ptr, s4 + 8);
 	out->p4 = d4 + s4 + 8;
-	print_titles(out->j1);
+	/*print_titles(out->j1);
 	print_titles(out->j2);
 	print_titles(out->j3);
-	print_titles(out->j4);
+	print_titles(out->j4);*/
 	return out;
+}
+void decode(model* m, const mat* u){
+	if(u->M != 4096){
+		fprintf(stderr, "incompatible hidden: %zu\n", u->M);
+		exit(1);
+	}
+	const mat* norm = get_mat(m, "model.norm.weight");
+
+	mat* ucpy = malloc(sizeof(mat));
+	memcpy(ucpy, u, sizeof(mat));
+	ucpy->buff = malloc(u->M * u->N * sizeof(bfloat16));
+	memcpy(ucpy->buff, u->buff, u->M * u->N * sizeof(bfloat16));
+	rms_norm(ucpy, norm, 1e-5);
+
+	const mat* head = get_mat(m, "lm_head.weight");
+	mat logits;
+	mm(head, u, &logits);
+	printf("\n\ncurrent decode candidates:\n");
+	for(size_t t = 0; t < logits.N; t++){
+		float biggest = -INFINITY;
+		size_t tk = 0;
+		for(size_t w = 0; w < logits.N; w++){
+			float cand = to_float32(logits.buff[w * logits.N + t]);	
+			if(cand > biggest){
+				biggest = cand;
+				tk = w;
+			}
+		}
+		char* out = tokenize(tk);
+		printf("%s\n", out);
+		free(out);
+	}
+	printf("\n\n");
+	free(ucpy->buff);
+	free(ucpy);
 }
