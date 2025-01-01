@@ -101,7 +101,9 @@ void mm(const mat* a, const mat* b, mat* c){
 		for(size_t j = 0; j < c->N; j++){
 			float f = 0.0;
 			for(size_t k = 0; k < a->N; k++){
-				f += to_float32(a->buff[i * a->N + k]) * to_float32(b->buff[k * b->N + j]);
+				float g = to_float32(a->buff[i * a->N + k]);
+				float h = to_float32(b->buff[k * b->N + j]);
+				f += g * h;
 			}
 			c->buff[i * c->N + j] = truncate_f32(f);
 		}
@@ -171,15 +173,19 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 	mm(k, ctx, &kc);
 	mm(v, ctx, &vc);
 
+#if PRINT_DEBUG
 	to_npy(&qc, "qc0.npy");
 	to_npy(&kc, "kc0.npy");
+#endif
 	//qc : 4096 x seqlen => 4 x 8 x 128 x seqlen
 	//kc : 1024 x seqlen => 8 x 128 x seqlen
 	//vc : 1024 x seqlen => 8 x 128 x seqlen
 	ro(&qc, 128);
-	to_npy(&qc, "qcr0.npy");
 	ro(&kc, 128);
+#if PRINT_DEBUG
+	to_npy(&qc, "qcr0.npy");
 	to_npy(&kc, "kcr0.npy");
+#endif
 
 	//attns: 4 x 8 x seqlen x seqlen
 	size_t shape[10];
@@ -219,7 +225,9 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 			}
 		}
 	}
+#if PRINT_DEBUG
 	to_fnpy(attns, shape, 4, "attn0.npy");
+#endif
 	//softmax
 	for(size_t g = 0; g < 4; g++){
 		for(size_t h = 0; h < 8; h++){
@@ -247,7 +255,9 @@ void sa(const mat* q, const mat* k, const mat* v, const mat* o, mat* ctx){
 			}
 		}
 	}
+#if PRINT_DEBUG
 	to_fnpy(attns, shape, 4, "smax0.npy");
+#endif
 	//preo: 4 x 8 x 128 x seqlen
 	float* preo = malloc(32 * 128 * seqlen * sizeof(float));
 	for(size_t g = 0; g < 4; g++){
@@ -312,16 +322,25 @@ void udg(const mat* gate, const mat* up, const mat* down, mat* ctx){
 			inter[i * seqlen + t] = silu(g) * u;
 		}
 	}
-
+#if PRINT_DEBUG
+	size_t sh[2];
+	sh[0] = D;
+	sh[1] = seqlen;
+	to_fnpy(inter, sh, 2, "inter.npy");
+#endif
 	for(size_t j = 0; j < d; j++){
 		for(size_t t = 0; t < seqlen; t++){
-			float acc = ctx->buff[j * 4 + t];
+			float acc = to_float32(ctx->buff[j * seqlen + t]);
 			for(size_t i = 0; i < D; i++){
-				acc += to_float32(down->buff[j * D + i]) * inter[i * seqlen + t]; 
+				float a = to_float32(down->buff[j * D + i]);
+				float b = inter[i * seqlen + t]; 
+				acc += a * b;
+				if(j == 0 && t == 0) printf("%f %f %f %f\n", a, b, a * b, acc);
 			}
-			ctx->buff[j * 4 + t] = truncate_f32(acc);
+			ctx->buff[j * seqlen + t] = truncate_f32(acc);
 		}
 	}
+	to_npy(ctx, "after.npy");
 }
 static int* offsets = NULL;
 static char* tokens = NULL;

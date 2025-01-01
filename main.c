@@ -54,11 +54,11 @@ int main(int arg, char** argv){
 	s.buff[3] = truncate_f32(13.0);
 	puts("\n\n");
 	print_mat(&s);
-	mat t;
-	mm(&r, &s, &t);
-	puts("\n\n");
-	print_mat(&t);
-	to_npy(&t, "t.npy");
+	//mat t;
+	//mm(&r, &s, &t);
+	//puts("\n\n");
+	//print_mat(&t);
+	//to_npy(&t, "t.npy");
 
 	printf("%s\n", tokenize(128000));
 	printf("%s\n", tokenize(2000));
