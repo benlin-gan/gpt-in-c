@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <math.h>
-#define PRINT_DEBUG 0
+#define PRINT_DEBUG 1
 void print_bfloat(bfloat16 b){
 	uint32_t c = 0;
 	((bfloat16*) &c)[1] = b; //little endian
