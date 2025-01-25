@@ -1,5 +1,5 @@
 #include "json.h"
-#include "util.h"
+#include "gpt2.h"
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdio.h>
@@ -8,6 +8,25 @@
 #include <unistd.h>
 #include <stdlib.h>
 int main(int arg, char** argv){	
+	int f = open("gpt2.safetensors", O_RDONLY);
+	char* d = mmap(NULL, 1000000000, PROT_READ, MAP_PRIVATE, f, 0);
+	size_t s = *(size_t*) d;
+	char* p = d + s + 8;
+	size_t ptr = 8;
+	struct json* j = jstring_to_json(d, &ptr, s + 8);
+	print_titles(j);
+	const grid* te = extract2grid(j, p, "wte.weight");
+	const grid* pe = extract2grid(j, p, "wpe.weight");
+	int prompt[10];
+	prompt[0] = 1890;
+	prompt[1] = 262;
+	prompt[2] = 661;
+	grid* g = embedgpt(prompt, 3, te, pe);
+	dump_grid(g, "weight.npy");
+	const tblock* t0 = extract_tblock(j, p, 0);
+	tmove(t0, g);
+	dump_grid(g, "weight1.npy");
+	/*
 	model* m = init_model();
 
 	//prompt: "<|begin_of_text|>for the people"
@@ -79,4 +98,5 @@ int main(int arg, char** argv){
 	mat logits;
 	mm(head, u, &logits);
 	to_npy(&logits, "logits.npy");
+	*/
 }

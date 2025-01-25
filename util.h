@@ -30,6 +30,7 @@ void sa(const mat* k, const mat* o, const mat* q, const mat* v, mat* ctx);
 void udg(const mat* gate, const mat* up, const mat* down, mat* ctx);
 void print_bfloat(bfloat16 b);	
 void print_mat(mat* m);
+void write_npy_header(int fd, const size_t* shape, size_t sh);
 void to_npy(const mat* m, char* path);
 char* tokenize(int);
 bfloat16 truncate_f32(float);

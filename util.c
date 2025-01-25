@@ -40,7 +40,7 @@ float* to_float_buffer(bfloat16* buf, size_t s){
 	}
 	return (float*) out;
 }
-void write_npy_header(int fd, size_t* shape, size_t shsize){
+void write_npy_header(int fd, const size_t* shape, size_t shsize){
 	char lol[10] = "xNUMPY";
 	lol[0] = -109; 
 	lol[6] = 1; //major version
