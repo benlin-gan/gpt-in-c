@@ -284,6 +284,8 @@ void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gri
 	size_t h = 12;
 	size_t hdim = d/h;
 
+	dump_grid(ctx, "ctx.npy");
+	dump_grid(k, "k.npy");
 	//qc, kc, vc: n x t x h x hdim
 	grid* qc = matmul(ctx, q);
 	madd(qc, qb);
@@ -291,6 +293,7 @@ void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gri
 	qc->shape[qc->sh++] = hdim; //splitting d -> h * hdim
 	grid* kc = matmul(ctx, k);
 	madd(kc, kb);
+	dump_grid(kc, "kc.npy");
 	kc->shape[kc->sh - 1] = h;
 	kc->shape[kc->sh++] = hdim;
 	grid* vc = matmul(ctx, v);
@@ -416,6 +419,7 @@ const tblock* extract_tblock(struct json* j, char* base, int i){
 	out->ln2b = extract2grid(j, base, names);
 	sprintf(names, "h.%d.attn.c_attn.weight", i);
 	const grid* packed = extract2grid(j, base, names);
+	dump_grid(packed, "packed.npy");
 	size_t d = packed->shape[0];
 	size_t shape[2];
 	shape[0] = d;
@@ -442,9 +446,9 @@ const tblock* extract_tblock(struct json* j, char* base, int i){
 	grid* qb = new_grid(shape, 1);
 	grid* kb = new_grid(shape, 1);
 	grid* vb = new_grid(shape, 1);
-	q->buff = packedb->buff;
-	k->buff = packedb->buff + d;
-	v->buff = packedb->buff + d + d;
+	qb->buff = packedb->buff;
+	kb->buff = packedb->buff + d;
+	vb->buff = packedb->buff + d + d;
 	out->qb = qb;
 	out->kb = kb;
 	out->vb = vb;
