@@ -1,10 +1,8 @@
 OBJS_DIR = .objs
 
-# define all of student executables
 EXE1=main
-EXES_STUDENT=$(EXE1)
+EXES_ALL=$(EXE1)
 
-# list object file dependencies for each
 OBJS=json.o util.o main.o gpt2.o
 
 # set up compiler
@@ -25,8 +23,8 @@ all: release
 .PHONY: release
 .PHONY: debug
 
-release: $(EXES_STUDENT)
-debug:   clean $(EXES_STUDENT:%=%-debug)
+release: $(EXES_ALL)
+debug:   clean $(EXES_ALL:%=%-debug)
 
 # include dependencies
 -include $(OBJS_DIR)/*.d
@@ -53,5 +51,5 @@ $(EXE1): $(OBJS:%.o=$(OBJS_DIR)/%-release.o)
 
 .PHONY: clean
 clean:
-	rm -rf .objs $(EXES_STUDENT) $(EXES_STUDENT:%=%-debug) *.npy
+	rm -rf .objs $(EXES_ALL) $(EXES_ALL:%=%-debug) *.npy
 
