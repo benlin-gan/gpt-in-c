@@ -8,32 +8,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 int main(int arg, char** argv){	
-	int f = open("gpt2.safetensors", O_RDONLY);
-	char* d = mmap(NULL, 1000000000, PROT_READ, MAP_PRIVATE, f, 0);
-	size_t s = *(size_t*) d;
-	char* p = d + s + 8;
-	size_t ptr = 8;
-	struct json* j = jstring_to_json(d, &ptr, s + 8);
-	print_titles(j);
-	const grid* te = extract2grid(j, p, "wte.weight");
-	const grid* pe = extract2grid(j, p, "wpe.weight");
+	gpt2* gpt = load_model("gpt2.safetensors");
 	//prompt: "For the people"
 	int prompt[10];
 	prompt[0] = 1890;
 	prompt[1] = 262;
 	prompt[2] = 661;
-	grid* g = embedgpt(prompt, 3, te, pe);
-	dump_grid(g, "weight0.npy");
-	tblock** ts = malloc(12 * sizeof(ts));
-	for(int i = 0; i < 12; i++){
-		ts[i] = extract_tblock(j, p, i);
-	}
-	for(int i = 0; i < 1; i++){
-		char huge[128];
-		tmove(ts[i], g);
-		sprintf(huge, "weight%d.npy", i + 1);
-		dump_grid(g, huge);
-	}
+	grid* lg = logits(gpt, prompt, 3);
+	dump_grid(lg, "lg.npy");
+	destroy_model(gpt);
 	/*
 	model* m = init_model();
 

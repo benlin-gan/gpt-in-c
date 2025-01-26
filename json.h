@@ -29,3 +29,4 @@ struct node* jstring_to_anode(char* str, size_t* start, size_t end);
 struct json* jstring_to_array(char* str, size_t* start, size_t end);
 void* jstring_to_unknown(char* str, size_t* start, size_t end, enum payload_type* t);
 void print_titles(struct json* j);
+void destroy_json(struct json* j);

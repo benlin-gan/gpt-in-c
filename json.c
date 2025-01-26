@@ -80,6 +80,8 @@ struct json* jstring_to_array(char* str, size_t* start, size_t end){
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
+	out->start = NULL;
+	out->end = NULL;
 	(*start)++;
 	while (true){
 		struct node* n = jstring_to_anode(str, start, end);
@@ -128,6 +130,8 @@ struct json* jstring_to_json(char* str, size_t* start, size_t end){
 		exit(1);
 	}
 	struct json* out = malloc(sizeof(struct json));
+	out->start = NULL;
+	out->end = NULL;
 	(*start)++;
 	while (true){
 		struct node* n = jstring_to_node(str, start, end);
@@ -149,4 +153,19 @@ void print_titles(struct json* j){
 		printf("%s\n", n->title);
 		n = n->next;
 	}
+}
+void destroy_json(struct json* j){
+	struct node* prev = NULL;
+	for(struct node* curr = j->start; curr != NULL;){
+		if(curr->title != NULL) free(curr->title);
+		if(curr->type == JSON || curr->type == ARRAY){
+			destroy_json((struct json*) curr->data);
+		}else if(curr->type == STRING || curr->type == INT){
+			free((char*) curr->data);
+		}
+		prev = curr;
+		curr = curr->next;
+		free(prev);
+	}	
+	free(j);
 }

@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/mman.h>
 void print_tuple(size_t* arr, size_t n){
 	printf("(");
 	for(size_t i = 0; i < n; i++){
@@ -154,6 +155,7 @@ void mask(grid* m){
 		if(q < k){
 			m->buff[i] = -INFINITY;
 		}
+		free(ii);
 	}
 }
 void smax(grid* m){
@@ -192,10 +194,11 @@ grid* tp(const grid* m, size_t a, size_t b){
 		idx[a] = idx[b];
 		idx[b] = temp;
 		*lookup(out, idx) = m->buff[i];
+		free(idx);
 	}
 	return out;
 }
-const grid* broadcast(const grid* a, const grid* b){
+grid* broadcast(const grid* a, const grid* b){
 	//return broadcast version of b using virutal indices
 	grid* out = shallow_copy(b);
 	size_t pfix = a->sh - b->sh;
@@ -221,15 +224,21 @@ void madd(grid* a, const grid* b){
 			exit(1);
 		}
 	}
+	grid* bcast = NULL;
 	if(a->sh < b->sh){
 		fprintf(stderr, "madd: cannot mutable add to a without allocating new memory");
 		exit(1);
 	}else if(b->sh < a->sh){
-		b = broadcast(a, b); //remember the memory leak here
+		bcast = broadcast(a, b); //remember the memory leak here
+		b = bcast;
 	}
 	for(size_t i = 0; i < total_addressable(a); i++){
 		size_t* ii = address_interp(a, i);
 		a->buff[i] += *lookup(b, ii);
+		free(ii);
+	}
+	if(bcast != NULL){
+		free(bcast);
 	}
 }
 grid* matmul(const grid* a, const grid* b){
@@ -254,10 +263,13 @@ grid* matmul(const grid* a, const grid* b){
 			exit(1);
 		}
 	}
+	grid* bcast = NULL;
 	if(a->sh < b->sh){
-		a = broadcast(b, a); //note memory error here
+		bcast = broadcast(b, a); //note memory error here
+		a = bcast;
 	}else if(b->sh < a->sh){
-		b = broadcast(a, b);
+		bcast = broadcast(a, b);
+		b = bcast;
 	}
 	size_t shape[8];
 	for(size_t i = 0; i < a->sh - 2; i++){
@@ -285,6 +297,9 @@ grid* matmul(const grid* a, const grid* b){
 			ii[out->sh - 1] = k;
 		}
 		free(ii);
+	}
+	if(bcast != NULL){
+		free(bcast);
 	}
 	return out;
 }
@@ -358,6 +373,7 @@ grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, 
 	madd(sps, upb);
 	swishb(sps);
 	grid* final = matmul(sps, down);
+	destroy_grid(sps);
 	madd(final, downb);
 	return final;
 }
@@ -366,10 +382,14 @@ void tmove(const tblock* t, grid* ctx){
 	ln(dctx, t->ln1, t->ln1b);
 	grid* psa = sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, dctx);
 	madd(ctx, psa);
+	destroy_grid(dctx);
+	destroy_grid(psa);
 	dctx = deep_copy(ctx);
 	ln(dctx, t->ln2, t->ln2b);
 	grid* pmix = mix(t->up, t->upb, t->down, t->downb, dctx);
 	madd(ctx, pmix);
+	destroy_grid(dctx);
+	destroy_grid(pmix);
 }
 grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 	size_t shape[8];
@@ -384,7 +404,17 @@ grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 	}
 	return out;
 }
-const grid* extract2grid(struct json* j, char* base, char* name){
+grid* logits(gpt2* gpt, int* s, size_t seqlen){
+	grid* ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
+	for(int i = 0; i < 1; i++){
+		tmove(gpt->blocks[i], ctx);
+	}
+	//ln(ctx, gpt->lnf, gpt->lnfb);
+	//grid* out = matmul(ctx, gpt->head);
+	//destroy_grid(ctx);
+	return ctx;
+}
+grid* extract2grid(struct json* j, char* base, char* name){
 	struct node* curr = j->start;
 	bool found = false;
 	for(; curr != NULL; curr = curr->next){
@@ -448,13 +478,14 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	out->k = k;
 	out->v = v;
 	sprintf(names, "h.%d.attn.c_attn.bias", i);
-	const grid* packedb = extract2grid(j, base, names);
+	grid* packedb = extract2grid(j, base, names);
 	grid* qb = new_grid(shape, 1);
 	grid* kb = new_grid(shape, 1);
 	grid* vb = new_grid(shape, 1);
 	qb->buff = packedb->buff;
 	kb->buff = packedb->buff + d;
 	vb->buff = packedb->buff + d + d;
+	free(packedb);
 	out->qb = qb;
 	out->kb = kb;
 	out->vb = vb;
@@ -473,9 +504,62 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	sprintf(names, "h.%d.mlp.c_proj.bias", i);
 	out->downb = extract2grid(j, base, names);
 
-
 	return out;
 }
 gpt2* load_model(char* path){
-	return NULL;
+	gpt2* out = malloc(sizeof(gpt2));
+	int f = open(path, O_RDONLY);
+	char* d = mmap(NULL, 1000000000, PROT_READ, MAP_PRIVATE, f, 0);
+	out->fd = f;
+	out->base = d;
+	size_t s = *(size_t*) d;
+	char* p = d + s + 8;
+	size_t ptr = 8;
+	struct json* j = jstring_to_json(d, &ptr, s + 8);
+	out->te = extract2grid(j, p, "wte.weight");
+	out->pe = extract2grid(j, p, "wpe.weight");
+	out->lnf = extract2grid(j, p, "ln_f.weight");
+	out->lnfb = extract2grid(j, p, "ln_f.bias");
+	out->head = tp(out->te, 0, 1);
+	out->blocks = malloc(12 * sizeof(tblock*));
+	for(int i = 0; i < 12; i++){
+		out->blocks[i] = extract_tblock(j, p, i);
+	}
+	out->j = j;
+	return out;
+}
+void destroy_tblock(tblock* t){
+	destroy_grid(t->q);
+	destroy_grid(t->k);
+	destroy_grid(t->v);
+	free(t->qb);
+	free(t->kb);
+	free(t->vb);
+	free(t->ln1);
+	free(t->ln1b);
+	free(t->ln2);
+	free(t->ln2b);
+	free(t->o);
+	free(t->ob);
+	free(t->down);
+	free(t->downb);
+	free(t->up);
+	free(t->upb);
+	free(t);
+}
+void destroy_model(gpt2* gpt){
+	destroy_grid(gpt->head);	
+	for(int i = 0; i < 12; i++){
+		destroy_tblock(gpt->blocks[i]);
+	}
+	munmap(gpt->base, 1000000000);
+	close(gpt->fd);
+	free(gpt->te);
+	free(gpt->pe);
+	free(gpt->lnf);
+	free(gpt->lnfb);
+	destroy_grid(gpt->head);
+	free(gpt->blocks);
+	destroy_json(gpt->j);
+	free(gpt);
 }
