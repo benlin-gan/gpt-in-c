@@ -417,6 +417,35 @@ grid* logits(gpt2* gpt, int* s, size_t seqlen){
 	destroy_grid(ctx);
 	return out;
 }
+int biggest(grid* lg){
+	size_t seqlen = lg->shape[lg->sh - 2];	
+	size_t cands = lg->shape[lg->sh - 1];
+	size_t out = 0;
+	float biggest = lg->buff[(seqlen - 1) * cands];
+	for(size_t i = 1; i < cands; i++){
+		float cand = lg->buff[(seqlen - 1) * cands + i];
+		if(biggest < cand){
+			biggest = cand;
+			out = i;
+		}
+	}
+	return out;
+}
+void loopgen(gpt2* gpt, int* s, size_t seqlen){
+	for(size_t i = 0; i < seqlen; i++){
+		gpt->ctx[i] = s[i];
+	}
+	char name[128];
+	for(int i = 0; i < 10; i++){
+		grid* lg = logits(gpt, gpt->ctx, seqlen + i);
+		int tok = biggest(lg);	
+		print_tok(gpt, tok);
+		gpt->ctx[seqlen + i] = tok;
+		sprintf(name, "lgits%zu.npy", seqlen + i);
+		dump_grid(lg, name);
+		destroy_grid(lg);
+	}
+}
 grid* extract2grid(struct json* j, char* base, char* name){
 	struct node* curr = j->start;
 	bool found = false;
@@ -533,13 +562,14 @@ gpt2* load_model(char* path){
 		out->blocks[i] = extract_tblock(j, p, i);
 	}
 	out->j = j;
-	/*
 	int g = open("gpt2-tokens.bin", O_RDONLY);
+	out->toks = malloc(321429);
 	read(g, out->toks, 321429);
 	int h = open("gpt2-offsets.bin", O_RDONLY);
-	read(h, out->offsets, 50258);
+	out->offsets = malloc(201032);
+	read(h, out->offsets, 201032);
 	close(g); 
-	close(h);*/
+	close(h);
 	return out;
 }
 void destroy_tblock(tblock* t){
@@ -573,6 +603,8 @@ void destroy_model(gpt2* gpt){
 	free(gpt->lnf);
 	free(gpt->lnfb);
 	free(gpt->blocks);
+	free(gpt->toks);
+	free(gpt->offsets);
 	destroy_json(gpt->j);
 	free(gpt);
 } 
@@ -581,5 +613,7 @@ void print_tok(gpt2* gpt, int i){
 	int end = gpt->offsets[i+1];	
 	char word[512];
 	memcpy(word, gpt->toks + start, end - start);
+	word[end - start] = '\0';
 	printf("%s", word);
+	fflush(stdout);
 }

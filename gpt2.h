@@ -36,14 +36,15 @@ struct gpt2{
 	grid* lnfb;
 	grid* head;
 	tblock** blocks;
-	char ctx[1024];
-	char offsets[50258];
-	char toks[321429];
+	int ctx[1024];
+	int* offsets;
+	char* toks;
 };
 typedef struct gpt2 gpt2;
 void destroy_model(gpt2*);
 gpt2* load_model(char* path);
 grid* logits(gpt2*, int*, size_t);
+void loopgen(gpt2*, int*, size_t);
 tblock* extract_tblock(struct json* j, char* base, int i);
 void tmove(const tblock* t, grid* ctx);
 grid* extract2grid(struct json* j, char* base, char* name);

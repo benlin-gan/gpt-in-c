@@ -9,16 +9,13 @@
 #include <stdlib.h>
 int main(int arg, char** argv){	
 	gpt2* gpt = load_model("gpt2.safetensors");
-	//prompt: "For the people"
+	//prompt: "I am"
 	int prompt[10];
-	prompt[0] = 1890;
-	prompt[1] = 262;
-	prompt[2] = 661;
-	print_tok(gpt, 1890);
-	print_tok(gpt, 262);
-	print_tok(gpt, 661);
-	grid* lg = logits(gpt, prompt, 3);
-	dump_grid(lg, "lg.npy");
+	prompt[0] = 40;
+	prompt[1] = 716;
+	print_tok(gpt, 40);
+	print_tok(gpt, 716);
+	loopgen(gpt, prompt, 2);
 	destroy_model(gpt);
 	/*
 	model* m = init_model();
