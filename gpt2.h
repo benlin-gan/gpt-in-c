@@ -26,7 +26,14 @@ struct tblock{
 	const grid* downb;
 };
 typedef struct tblock tblock;
-const tblock* extract_tblock(struct json* j, char* base, int i);
+struct gpt2{
+	grid* te;
+	grid* pe;
+	tblock** blocks;
+}
+typedef struct gpt2 gpt2;
+gpt2* load_model(char* path);
+tblock* extract_tblock(struct json* j, char* base, int i);
 void tmove(const tblock* t, grid* ctx);
 const grid* extract2grid(struct json* j, char* base, char* name);
 void dump_grid(const grid* m, char* path);

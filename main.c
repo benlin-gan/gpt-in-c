@@ -17,15 +17,23 @@ int main(int arg, char** argv){
 	print_titles(j);
 	const grid* te = extract2grid(j, p, "wte.weight");
 	const grid* pe = extract2grid(j, p, "wpe.weight");
+	//prompt: "For the people"
 	int prompt[10];
 	prompt[0] = 1890;
 	prompt[1] = 262;
 	prompt[2] = 661;
 	grid* g = embedgpt(prompt, 3, te, pe);
-	dump_grid(g, "weight.npy");
-	const tblock* t0 = extract_tblock(j, p, 0);
-	tmove(t0, g);
-	dump_grid(g, "weight1.npy");
+	dump_grid(g, "weight0.npy");
+	tblock** ts = malloc(12 * sizeof(ts));
+	for(int i = 0; i < 12; i++){
+		ts[i] = extract_tblock(j, p, i);
+	}
+	for(int i = 0; i < 1; i++){
+		char huge[128];
+		tmove(ts[i], g);
+		sprintf(huge, "weight%d.npy", i + 1);
+		dump_grid(g, huge);
+	}
 	/*
 	model* m = init_model();
 

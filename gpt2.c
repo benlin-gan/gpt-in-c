@@ -96,6 +96,14 @@ grid* shallow_copy(const grid* m){
 	memcpy(out, m, sizeof(grid));	
 	return out;
 }
+grid* deep_copy(const grid* m){
+	grid* out = malloc(sizeof(grid));
+	memcpy(out, m, sizeof(grid));	
+	size_t to_copy = actual_addressable(m);
+	out->buff = malloc(to_copy * 4);
+	memcpy(out->buff, m->buff, to_copy * 4);
+	return out;
+}
 grid* new_grid(const size_t* s, size_t n){
 	grid* out = malloc(sizeof(grid));
 	out->sh = n;
@@ -107,6 +115,10 @@ grid* new_grid(const size_t* s, size_t n){
 	}
 	out->buff = malloc(sizeof(float) * to_alloc);
 	return out;
+}
+void destroy_grid(grid* g){
+	free(g->buff);
+	free(g);
 }
 void ln(grid* x, const grid* m, const grid* b){
 	//x : ? x d
@@ -276,7 +288,7 @@ grid* matmul(const grid* a, const grid* b){
 	}
 	return out;
 }
-void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const grid* v, const grid* vb, const grid* o, const grid* ob, grid* ctx){
+grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const grid* v, const grid* vb, const grid* o, const grid* ob, const grid* ctx){
 	//ctx: n x t x d
 	//size_t t = ctx->shape[1];
 	size_t d = ctx->shape[2];
@@ -284,8 +296,6 @@ void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gri
 	size_t h = 12;
 	size_t hdim = d/h;
 
-	dump_grid(ctx, "ctx.npy");
-	dump_grid(k, "k.npy");
 	//qc, kc, vc: n x t x h x hdim
 	grid* qc = matmul(ctx, q);
 	madd(qc, qb);
@@ -293,7 +303,6 @@ void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gri
 	qc->shape[qc->sh++] = hdim; //splitting d -> h * hdim
 	grid* kc = matmul(ctx, k);
 	madd(kc, kb);
-	dump_grid(kc, "kc.npy");
 	kc->shape[kc->sh - 1] = h;
 	kc->shape[kc->sh++] = hdim;
 	grid* vc = matmul(ctx, v);
@@ -304,48 +313,44 @@ void sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gri
 	//qct, kct, vct: n x h x t x hdim
 	grid* qct = tp(qc, 1, 2); 
 	grid* kct = tp(kc, 1, 2);
-	dump_grid(kct, "kct.npy");
 	grid* vct = tp(vc, 1, 2);
-	free(qc);
-	free(kc);
-	free(vc);
+	destroy_grid(qc);
+	destroy_grid(kc);
+	destroy_grid(vc);
 	//kctt: n x h x hdim x t
 	grid* kctt = tp(kct, 2, 3);
-	free(kct);
+	destroy_grid(kct);
 	//score: n x h x t x t
 	grid* score = matmul(qct, kctt);
-	dump_grid(score, "s.npy");
-	free(qct);
-	free(kctt);
+	destroy_grid(qct);
+	destroy_grid(kctt);
 
 	//scale
 	scale(score, 1.0/sqrt(hdim));
 	//mask
 	mask(score);
-	dump_grid(score, "q.npy");
 	//do the score => weights conversion
 	smax(score);
-	dump_grid(score, "at.npy");
 	
 	//score: n x h x t x t
 	//vct: n x h x t x hdim
 	//av : n x h x t x hdim
 	grid* av = matmul(score, vct);
-	free(score);
-	free(vct);
+	destroy_grid(score);
+	destroy_grid(vct);
 	//avt: n x t x (h * hdim)
 	grid* avt = tp(av, 1, 2);
 	avt->shape[avt->sh - 2] *= avt->shape[avt->sh - 1];
 	avt->sh--; //collapse (h * hdim) -> d
-	free(av);
+	destroy_grid(av);
 	//o: (h * hdim) x d 
 	//final: n x t x d
 	grid* final = matmul(avt, o);
 	madd(final, ob);
-	free(avt);
-	madd(ctx, final);
+	destroy_grid(avt);
+	return final;
 }
-void mix(const grid* up, const grid* upb, const grid* down, const grid* downb, grid* ctx){
+grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, const grid* ctx){
 	//ctx: n x t x d
 	//up: d x D
 	//down: D x d
@@ -354,15 +359,17 @@ void mix(const grid* up, const grid* upb, const grid* down, const grid* downb, g
 	swishb(sps);
 	grid* final = matmul(sps, down);
 	madd(final, downb);
-	madd(ctx, final);
+	return final;
 }
 void tmove(const tblock* t, grid* ctx){
-	dump_grid(ctx, "pln1.npy");
-	ln(ctx, t->ln1, t->ln1b);
-	dump_grid(ctx, "ln1.npy");
-	sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, ctx);
-	ln(ctx, t->ln2, t->ln2b);
-	mix(t->up, t->upb, t->down, t->downb, ctx);
+	grid* dctx = deep_copy(ctx);
+	ln(dctx, t->ln1, t->ln1b);
+	grid* psa = sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, dctx);
+	madd(ctx, psa);
+	dctx = deep_copy(ctx);
+	ln(dctx, t->ln2, t->ln2b);
+	grid* pmix = mix(t->up, t->upb, t->down, t->downb, dctx);
+	madd(ctx, pmix);
 }
 grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 	size_t shape[8];
@@ -406,7 +413,7 @@ const grid* extract2grid(struct json* j, char* base, char* name){
 	out->buff = (float*) (base + *(size_t*) offsets_array->start->data);
 	return out;
 }
-const tblock* extract_tblock(struct json* j, char* base, int i){
+tblock* extract_tblock(struct json* j, char* base, int i){
 	tblock* out = malloc(sizeof(tblock));
 	char names[1024];
 	sprintf(names, "h.%d.ln_1.weight", i);
@@ -419,7 +426,6 @@ const tblock* extract_tblock(struct json* j, char* base, int i){
 	out->ln2b = extract2grid(j, base, names);
 	sprintf(names, "h.%d.attn.c_attn.weight", i);
 	const grid* packed = extract2grid(j, base, names);
-	dump_grid(packed, "packed.npy");
 	size_t d = packed->shape[0];
 	size_t shape[2];
 	shape[0] = d;
@@ -469,4 +475,7 @@ const tblock* extract_tblock(struct json* j, char* base, int i){
 
 
 	return out;
+}
+gpt2* load_model(char* path){
+	return NULL;
 }
