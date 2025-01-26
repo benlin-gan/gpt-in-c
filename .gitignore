@@ -1,4 +1,4 @@
-*safetensors
+*.safetensors
 *.npy
 *.pt
 *.dict
