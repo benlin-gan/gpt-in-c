@@ -36,6 +36,9 @@ struct gpt2{
 	grid* lnfb;
 	grid* head;
 	tblock** blocks;
+	char ctx[1024];
+	char offsets[50258];
+	char toks[321429];
 };
 typedef struct gpt2 gpt2;
 void destroy_model(gpt2*);
@@ -47,3 +50,4 @@ grid* extract2grid(struct json* j, char* base, char* name);
 void dump_grid(const grid* m, char* path);
 grid* embedgpt(int*, size_t, const grid*, const grid*);
 void destroy_grid(grid*);
+void print_tok(gpt2*, int);

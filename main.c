@@ -14,6 +14,9 @@ int main(int arg, char** argv){
 	prompt[0] = 1890;
 	prompt[1] = 262;
 	prompt[2] = 661;
+	print_tok(gpt, 1890);
+	print_tok(gpt, 262);
+	print_tok(gpt, 661);
 	grid* lg = logits(gpt, prompt, 3);
 	dump_grid(lg, "lg.npy");
 	destroy_model(gpt);

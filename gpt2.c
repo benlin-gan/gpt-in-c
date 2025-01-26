@@ -406,11 +406,14 @@ grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 }
 grid* logits(gpt2* gpt, int* s, size_t seqlen){
 	grid* ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
+	//printf("embed\n");
 	for(int i = 0; i < 12; i++){
 		tmove(gpt->blocks[i], ctx);
+		//printf("%d\n", i + 1);
 	}
 	ln(ctx, gpt->lnf, gpt->lnfb);
 	grid* out = matmul(ctx, gpt->head);
+	//printf("big one done");
 	destroy_grid(ctx);
 	return out;
 }
@@ -530,6 +533,13 @@ gpt2* load_model(char* path){
 		out->blocks[i] = extract_tblock(j, p, i);
 	}
 	out->j = j;
+	/*
+	int g = open("gpt2-tokens.bin", O_RDONLY);
+	read(g, out->toks, 321429);
+	int h = open("gpt2-offsets.bin", O_RDONLY);
+	read(h, out->offsets, 50258);
+	close(g); 
+	close(h);*/
 	return out;
 }
 void destroy_tblock(tblock* t){
@@ -565,4 +575,11 @@ void destroy_model(gpt2* gpt){
 	free(gpt->blocks);
 	destroy_json(gpt->j);
 	free(gpt);
+} 
+void print_tok(gpt2* gpt, int i){
+	int start = gpt->offsets[i];	
+	int end = gpt->offsets[i+1];	
+	char word[512];
+	memcpy(word, gpt->toks + start, end - start);
+	printf("%s", word);
 }
