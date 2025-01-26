@@ -406,13 +406,13 @@ grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 }
 grid* logits(gpt2* gpt, int* s, size_t seqlen){
 	grid* ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
-	for(int i = 0; i < 1; i++){
+	for(int i = 0; i < 12; i++){
 		tmove(gpt->blocks[i], ctx);
 	}
-	//ln(ctx, gpt->lnf, gpt->lnfb);
-	//grid* out = matmul(ctx, gpt->head);
-	//destroy_grid(ctx);
-	return ctx;
+	ln(ctx, gpt->lnf, gpt->lnfb);
+	grid* out = matmul(ctx, gpt->head);
+	destroy_grid(ctx);
+	return out;
 }
 grid* extract2grid(struct json* j, char* base, char* name){
 	struct node* curr = j->start;
@@ -463,9 +463,6 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	grid* q = new_grid(shape, 2);
 	grid* k = new_grid(shape, 2);
 	grid* v = new_grid(shape, 2);
-	free(q->buff);
-	free(k->buff);
-	free(v->buff);
 	for(size_t i = 0; i < d; i++){
 		for(size_t j = 0; j < d; j++){
 			q->buff[i * d + j] = packed->buff[i * 3 * d + j];
@@ -486,6 +483,9 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	grid* qb = new_grid(shape, 1);
 	grid* kb = new_grid(shape, 1);
 	grid* vb = new_grid(shape, 1);
+	free(qb->buff);
+	free(kb->buff);
+	free(vb->buff);
 	qb->buff = packedb->buff;
 	kb->buff = packedb->buff + d;
 	vb->buff = packedb->buff + d + d;
