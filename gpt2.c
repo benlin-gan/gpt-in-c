@@ -455,7 +455,7 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	sprintf(names, "h.%d.ln_2.bias", i);
 	out->ln2b = extract2grid(j, base, names);
 	sprintf(names, "h.%d.attn.c_attn.weight", i);
-	const grid* packed = extract2grid(j, base, names);
+	grid* packed = extract2grid(j, base, names);
 	size_t d = packed->shape[0];
 	size_t shape[2];
 	shape[0] = d;
@@ -463,6 +463,9 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	grid* q = new_grid(shape, 2);
 	grid* k = new_grid(shape, 2);
 	grid* v = new_grid(shape, 2);
+	free(q->buff);
+	free(k->buff);
+	free(v->buff);
 	for(size_t i = 0; i < d; i++){
 		for(size_t j = 0; j < d; j++){
 			q->buff[i * d + j] = packed->buff[i * 3 * d + j];
@@ -477,6 +480,7 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	out->q = q;
 	out->k = k;
 	out->v = v;
+	free(packed);
 	sprintf(names, "h.%d.attn.c_attn.bias", i);
 	grid* packedb = extract2grid(j, base, names);
 	grid* qb = new_grid(shape, 1);
@@ -558,7 +562,6 @@ void destroy_model(gpt2* gpt){
 	free(gpt->pe);
 	free(gpt->lnf);
 	free(gpt->lnfb);
-	destroy_grid(gpt->head);
 	free(gpt->blocks);
 	destroy_json(gpt->j);
 	free(gpt);
