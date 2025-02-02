@@ -24,6 +24,9 @@ struct tblock{
 	grid* upb;
 	grid* down;
 	grid* downb;
+
+	grid* kcache[12];
+	grid* vcache[12]; //n x h x t x hdim
 };
 typedef struct tblock tblock;
 struct gpt2{

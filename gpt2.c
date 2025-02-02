@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <time.h>
 #include <sys/mman.h>
 void print_tuple(size_t* arr, size_t n){
 	printf("(");
@@ -376,6 +377,11 @@ grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, 
 	destroy_grid(sps);
 	madd(final, downb);
 	return final;
+}
+double get_time(){
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
 }
 void tmove(const tblock* t, grid* ctx){
 	grid* dctx = deep_copy(ctx);
