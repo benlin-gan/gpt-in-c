@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/mman.h>
-void print_tuple(size_t* arr, size_t n){
+void print_tuple(const size_t* arr, size_t n){
 	printf("(");
 	for(size_t i = 0; i < n; i++){
 		if(i != 0) printf(", ");
@@ -242,6 +242,27 @@ void madd(grid* a, const grid* b){
 		free(bcast);
 	}
 }
+double get_time(){
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
+void matmul_base(const float* a, const float* b, float* c, size_t M, size_t N, size_t K){
+	//a : M x K
+	//b : K x N
+	//c : M x N 
+	for(size_t i = 0; i < M * N; i++){
+		c[i] = 0.0;
+	}
+	for(size_t k = 0; k < K; k++){
+		for(size_t i = 0; i < M; i++){
+			float as = a[i * K + k];
+			for(size_t j = 0; j < N; j++){
+				c[i * N + j] += as * b[k * N + j];
+			}
+		}
+	}
+}
 grid* matmul(const grid* a, const grid* b){
 	//matmul on the two inner-most indices of a, b
 	if(a->sh < 2){
@@ -256,7 +277,7 @@ grid* matmul(const grid* a, const grid* b){
 		fprintf(stderr, "matmul: incompatible dimensions x\n");
 		exit(1);
 	} 
-	size_t L = a->shape[a->sh - 1]; //dimension of joined index
+	size_t K = a->shape[a->sh - 1]; //dimension of joined index
 	size_t pfix = a->sh - b->sh;
 	for(size_t i = 0; i < b->sh - 2; i++){
 		if(a->shape[i + pfix] != b->shape[i]){
@@ -276,29 +297,31 @@ grid* matmul(const grid* a, const grid* b){
 	for(size_t i = 0; i < a->sh - 2; i++){
 		shape[i] = a->shape[i];	
 	}
-	shape[a->sh - 2] = a->shape[a->sh - 2];
-	shape[b->sh - 1] = b->shape[b->sh - 1];
+	size_t M = a->shape[a->sh - 2];
+	size_t N = b->shape[b->sh - 1];
+	shape[a->sh - 2] = M; 
+	shape[b->sh - 1] = N;
+	size_t A = actual_addressable(a) / (M * K);
+	size_t B = actual_addressable(b) / (K * N); 
+	size_t batches = A > B ? A : B;
 	grid* out = new_grid(shape, a->sh);
-	for(size_t i = 0; i < total_addressable(out); i++){
-		size_t* ii = address_interp(out, i);
-		size_t j = ii[out->sh - 2];
-		size_t k = ii[out->sh - 1];
-		out->buff[i] = 0.0;	
-		/*printf("out: ");
-		print_tuple(ii, a->sh);
-		printf("\n");*/
-		for(size_t l = 0; l < L; l++){
-			ii[out->sh - 1] = l;
-			float x = *lookup(a, ii);
-			ii[out->sh - 1] = k;
-			ii[out->sh - 2] = l;
-			float y = *lookup(b, ii);
-			out->buff[i] += x * y;
-			ii[out->sh - 2] = j;
-			ii[out->sh - 1] = k;
-		}
-		free(ii);
+	//double start_time = get_time();
+	for(size_t n = 0; n < batches; n++){
+		size_t na = n % A;	
+		size_t nb = n % B;	
+		float* abase = a->buff + na * M * K;
+		float* bbase = b->buff + nb * K * N;
+		float* cbase = out->buff + n * M * N;
+		matmul_base(abase, bbase, cbase, M, N, K);
 	}
+	/*
+	double end_time = get_time();
+	printf("a = ");
+	print_tuple(a->shape, a->sh);
+	printf("; b = ");
+	print_tuple(b->shape, b->sh);
+	printf("; time taken = %.3fs\n", end_time - start_time);
+	*/
 	if(bcast != NULL){
 		free(bcast);
 	}
@@ -377,11 +400,6 @@ grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, 
 	destroy_grid(sps);
 	madd(final, downb);
 	return final;
-}
-double get_time(){
-	struct timespec t;
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	return t.tv_sec + t.tv_nsec * 1e-9;
 }
 void tmove(const tblock* t, grid* ctx){
 	grid* dctx = deep_copy(ctx);

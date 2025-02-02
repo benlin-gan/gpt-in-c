@@ -3,6 +3,8 @@
 *.pt
 *.dict
 *.py
+*.mp4
+*.notes
 main
 main-debug
 base/*
