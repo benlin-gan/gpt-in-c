@@ -22,9 +22,11 @@ all: release
 # build types
 .PHONY: release
 .PHONY: debug
+.PHONY: timing
 
 release: $(EXES_ALL)
 debug:   clean $(EXES_ALL:%=%-debug)
+timing: clean $(EXES_ALL)
 
 # include dependencies
 -include $(OBJS_DIR)/*.d

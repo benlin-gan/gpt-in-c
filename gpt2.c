@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/mman.h>
+#define TIMING 0
 void print_tuple(const size_t* arr, size_t n){
 	printf("(");
 	for(size_t i = 0; i < n; i++){
@@ -305,7 +306,9 @@ grid* matmul(const grid* a, const grid* b){
 	size_t B = actual_addressable(b) / (K * N); 
 	size_t batches = A > B ? A : B;
 	grid* out = new_grid(shape, a->sh);
-	//double start_time = get_time();
+#if TIMING
+	double start_time = get_time();
+#endif
 	for(size_t n = 0; n < batches; n++){
 		size_t na = n % A;	
 		size_t nb = n % B;	
@@ -314,14 +317,14 @@ grid* matmul(const grid* a, const grid* b){
 		float* cbase = out->buff + n * M * N;
 		matmul_base(abase, bbase, cbase, M, N, K);
 	}
-	/*
+#if TIMING
 	double end_time = get_time();
 	printf("a = ");
 	print_tuple(a->shape, a->sh);
 	printf("; b = ");
 	print_tuple(b->shape, b->sh);
-	printf("; time taken = %.3fs\n", end_time - start_time);
-	*/
+	printf("; time taken = %.5fs\n", end_time - start_time);
+#endif
 	if(bcast != NULL){
 		free(bcast);
 	}
