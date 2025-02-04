@@ -11,13 +11,13 @@
 #include <time.h>
 #include <sys/mman.h>
 #define TIMING 0
-void print_tuple(const size_t* arr, size_t n){
-	printf("(");
+void print_tuple(FILE* f, const size_t* arr, size_t n){
+	fprintf(f, "(");
 	for(size_t i = 0; i < n; i++){
-		if(i != 0) printf(", ");
-		printf("%zu", arr[i]);
+		if(i != 0) fprintf(f, ", ");
+		fprintf(f, "%zu", arr[i]);
 	}
-	printf(")");
+	fprintf(f, ")");
 }
 size_t total_addressable(const grid* m){
 	size_t out = 1;
@@ -320,9 +320,9 @@ grid* matmul(const grid* a, const grid* b){
 #if TIMING
 	double end_time = get_time();
 	printf("a = ");
-	print_tuple(a->shape, a->sh);
+	print_tuple(stdout, a->shape, a->sh);
 	printf("; b = ");
-	print_tuple(b->shape, b->sh);
+	print_tuple(stdout, b->shape, b->sh);
 	printf("; time taken = %.5fs\n", end_time - start_time);
 #endif
 	if(bcast != NULL){
@@ -330,7 +330,38 @@ grid* matmul(const grid* a, const grid* b){
 	}
 	return out;
 }
-grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const grid* v, const grid* vb, const grid* o, const grid* ob, const grid* ctx){
+void add_to_cache(grid* cache, grid* newpart){
+	//cache: n x (t - 1) x h x hdim 
+	//newpart: n x 1 x h x hdim 
+	if(cache->shape[0] != newpart->shape[0] || cache->shape[2] != newpart->shape[2] || cache->shape[3] != newpart->shape[3] || newpart->shape[1] != 1){
+		fprintf(stderr, "add_to_cache: incompatible dimensions, namely ");
+		print_tuple(stderr, cache->shape, cache->sh);
+		fprintf(stderr, " and ");
+		print_tuple(stderr, newpart->shape, newpart->sh);
+		fprintf(stderr, "\n");
+		exit(1);
+	}
+	size_t n = cache->shape[0];
+	size_t t = ++cache->shape[1];
+	size_t h = cache->shape[2];
+	size_t hdim = cache->shape[3];
+	float* old = cache->buff;
+	cache->buff = malloc(sizeof(float) * total_addressable(cache)); 
+	for(size_t i = 0; i < n; i++){
+		float* baseptr = cache->buff + i * t * h * hdim;
+		memcpy(baseptr, old + i * (t - 1) * h * hdim, (t - 1) * h * hdim * sizeof(float));
+		memcpy(baseptr + (t - 1) * h * hdim, newpart->buff + i * h * hdim, h * hdim * sizeof(float));
+	}
+	free(old);
+}
+grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const grid* v, const grid* vb, const grid* o, const grid* ob, const grid* ctx, grid** kcache, grid** vcache, bool caching){
+	if(caching){
+		//i.e. not the first token
+		if(*kcache == NULL || *vcache == NULL){
+			fprintf(stderr, "sea: cache is empty\n");
+			exit(1);
+		}
+	}
 	//ctx: n x t x d
 	//size_t t = ctx->shape[1];
 	size_t d = ctx->shape[2];
@@ -351,14 +382,28 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	madd(vc, vb);
 	vc->shape[vc->sh - 1] = h;
 	vc->shape[vc->sh++] = hdim;
-
+	if(caching){
+		//kcache: n x (t - 1) x h x hdim 
+		//kc: n x 1 x h x hdim 
+		add_to_cache(*kcache, kc); 
+		//vcache: n x (t - 1) x h x hdim 
+		//vc: n x 1 x h x hdim 
+		add_to_cache(*vcache, vc);
+		destroy_grid(kc);
+		destroy_grid(vc);
+		kc = *kcache;
+		vc = *vcache;
+	}else{
+		*kcache = kc;
+		*vcache = vc;
+	}
 	//qct, kct, vct: n x h x t x hdim
 	grid* qct = tp(qc, 1, 2); 
 	grid* kct = tp(kc, 1, 2);
 	grid* vct = tp(vc, 1, 2);
 	destroy_grid(qc);
-	destroy_grid(kc);
-	destroy_grid(vc);
+	//destroy_grid(kc); don't destroy it goes to the cache
+	//destroy_grid(vc); don't destroy it goes to the cache
 	//kctt: n x h x hdim x t
 	grid* kctt = tp(kct, 2, 3);
 	destroy_grid(kct);
@@ -370,7 +415,9 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	//scale
 	scale(score, 1.0/sqrt(hdim));
 	//mask
-	mask(score);
+	if(!caching){
+		mask(score);
+	}
 	//do the score => weights conversion
 	smax(score);
 	
@@ -404,10 +451,10 @@ grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, 
 	madd(final, downb);
 	return final;
 }
-void tmove(const tblock* t, grid* ctx){
+void tmove(tblock* t, grid* ctx, bool caching){
 	grid* dctx = deep_copy(ctx);
 	ln(dctx, t->ln1, t->ln1b);
-	grid* psa = sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, dctx);
+	grid* psa = sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, dctx, &t->kcache, &t->vcache, caching);
 	madd(ctx, psa);
 	destroy_grid(dctx);
 	destroy_grid(psa);
@@ -417,6 +464,18 @@ void tmove(const tblock* t, grid* ctx){
 	madd(ctx, pmix);
 	destroy_grid(dctx);
 	destroy_grid(pmix);
+}
+grid* embedgpt_caching(int tok, size_t seqno, const grid* te, const grid* pe){
+	size_t shape[8]; //n x t x d 
+	shape[0] = 1;
+	shape[1] = 1;
+	shape[2] = te->shape[te->sh - 1];
+	size_t d = shape[2];
+	grid* out = new_grid(shape, 3);
+	for(size_t i = 0; i < d; i++){
+		out->buff[i] = te->buff[tok * d + i] + pe->buff[seqno * d + i];
+	}
+	return out;
 }
 grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 	size_t shape[8];
@@ -431,11 +490,16 @@ grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 	}
 	return out;
 }
-grid* logits(gpt2* gpt, int* s, size_t seqlen){
-	grid* ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
+grid* logits(gpt2* gpt, int* s, size_t seqlen, bool caching){
+	grid* ctx;
+   	if(caching){
+		ctx = embedgpt_caching(s[seqlen - 1], seqlen - 1, gpt->te, gpt->pe);
+	}else{
+		ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
+	}
 	//printf("embed\n");
 	for(int i = 0; i < 12; i++){
-		tmove(gpt->blocks[i], ctx);
+		tmove(gpt->blocks[i], ctx, caching);
 		//printf("%d\n", i + 1);
 	}
 	ln(ctx, gpt->lnf, gpt->lnfb);
@@ -463,14 +527,16 @@ void loopgen(gpt2* gpt, int* s, size_t seqlen){
 		gpt->ctx[i] = s[i];
 	}
 	char name[128];
-	for(int i = 0; i < 10; i++){
-		grid* lg = logits(gpt, gpt->ctx, seqlen + i);
+	bool caching = false;
+	for(int i = 0; i < 20; i++){
+		grid* lg = logits(gpt, gpt->ctx, seqlen + i, caching);
 		int tok = biggest(lg);	
 		print_tok(gpt, tok);
 		gpt->ctx[seqlen + i] = tok;
 		sprintf(name, "lgits%zu.npy", seqlen + i);
 		dump_grid(lg, name);
 		destroy_grid(lg);
+		caching = true;
 	}
 }
 grid* extract2grid(struct json* j, char* base, char* name){
@@ -567,6 +633,9 @@ tblock* extract_tblock(struct json* j, char* base, int i){
 	sprintf(names, "h.%d.mlp.c_proj.bias", i);
 	out->downb = extract2grid(j, base, names);
 
+	out->kcache = NULL;
+	out->vcache = NULL;
+
 	return out;
 }
 gpt2* load_model(char* path){
@@ -603,6 +672,12 @@ void destroy_tblock(tblock* t){
 	destroy_grid(t->q);
 	destroy_grid(t->k);
 	destroy_grid(t->v);
+	if(t->vcache != NULL){
+		destroy_grid(t->vcache);
+	}
+	if(t->kcache != NULL){
+		destroy_grid(t->kcache);
+	}
 	free(t->qb);
 	free(t->kb);
 	free(t->vb);
