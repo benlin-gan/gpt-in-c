@@ -528,13 +528,13 @@ void loopgen(gpt2* gpt, int* s, size_t seqlen){
 	}
 	char name[128];
 	bool caching = false;
-	for(int i = 0; i < 20; i++){
+	for(int i = 0; i < 200; i++){
 		grid* lg = logits(gpt, gpt->ctx, seqlen + i, caching);
 		int tok = biggest(lg);	
 		print_tok(gpt, tok);
 		gpt->ctx[seqlen + i] = tok;
-		sprintf(name, "lgits%zu.npy", seqlen + i);
-		dump_grid(lg, name);
+		//sprintf(name, "lgits%zu.npy", seqlen + i);
+		//dump_grid(lg, name);
 		destroy_grid(lg);
 		caching = true;
 	}
