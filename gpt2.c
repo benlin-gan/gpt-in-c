@@ -526,7 +526,7 @@ void loopgen(gpt2* gpt, int* s, size_t seqlen){
 	for(size_t i = 0; i < seqlen; i++){
 		gpt->ctx[i] = s[i];
 	}
-	char name[128];
+//	char name[128];
 	bool caching = false;
 	for(int i = 0; i < 200; i++){
 		grid* lg = logits(gpt, gpt->ctx, seqlen + i, caching);
