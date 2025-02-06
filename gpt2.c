@@ -367,6 +367,7 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 			exit(1);
 		}
 	}
+	float times[128];
 	//ctx: n x t x d
 	//size_t t = ctx->shape[1];
 	size_t d = ctx->shape[2];
@@ -375,16 +376,23 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	size_t hdim = d/h;
 
 	//qc, kc, vc: n x t x h x hdim
+	times[0] = get_time();
 	grid* qc = matmul(ctx, q);
+	times[1] = get_time();
 	madd(qc, qb);
+	times[2] = get_time();
 	qc->shape[qc->sh - 1] = h;
 	qc->shape[qc->sh++] = hdim; //splitting d -> h * hdim
 	grid* kc = matmul(ctx, k);
+	times[3] = get_time();
 	madd(kc, kb);
+	times[4] = get_time();
 	kc->shape[kc->sh - 1] = h;
 	kc->shape[kc->sh++] = hdim;
 	grid* vc = matmul(ctx, v);
+	times[5] = get_time();
 	madd(vc, vb);
+	times[6] = get_time();
 	vc->shape[vc->sh - 1] = h;
 	vc->shape[vc->sh++] = hdim;
 	if(caching){
@@ -402,38 +410,48 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 		*kcache = kc;
 		*vcache = vc;
 	}
+	times[7] = get_time();
 	//qct, kct, vct: n x h x t x hdim
 	grid* qct = tp(qc, 1, 2); 
+	times[8] = get_time();
 	grid* kct = tp(kc, 1, 2);
+	times[9] = get_time();
 	grid* vct = tp(vc, 1, 2);
+	times[10] = get_time();
 	destroy_grid(qc);
 	//destroy_grid(kc); don't destroy it goes to the cache
 	//destroy_grid(vc); don't destroy it goes to the cache
 	//kctt: n x h x hdim x t
 	grid* kctt = tp(kct, 2, 3);
+	times[11] = get_time();
 	destroy_grid(kct);
 	//score: n x h x t x t
 	grid* score = matmul(qct, kctt);
+	times[12] = get_time();
 	destroy_grid(qct);
 	destroy_grid(kctt);
 
 	//scale
 	scale(score, 1.0/sqrt(hdim));
+	times[13] = get_time();
 	//mask
 	if(!caching){
 		mask(score);
 	}
 	//do the score => weights conversion
 	smax(score);
+	times[14] = get_time();
 
 	//score: n x h x t x t
 	//vct: n x h x t x hdim
 	//av : n x h x t x hdim
 	grid* av = matmul(score, vct);
+	times[15] = get_time();
 	destroy_grid(score);
 	destroy_grid(vct);
 	//avt: n x t x (h * hdim)
 	grid* avt = tp(av, 1, 2);
+	times[16] = get_time();
 	avt->shape[avt->sh - 2] *= avt->shape[avt->sh - 1];
 	avt->sh--; //collapse (h * hdim) -> d
 	destroy_grid(av);
@@ -441,7 +459,11 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	//final: n x t x d
 	grid* final = matmul(avt, o);
 	madd(final, ob);
+	times[17] = get_time();
 	destroy_grid(avt);
+	for(int i = 1; i < 18; i++){
+		printf("%d: %.6fs\n", i, times[i] - times[i - 1]);
+	}
 	return final;
 }
 grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, const grid* ctx){
