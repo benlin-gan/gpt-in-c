@@ -7,7 +7,11 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stdlib.h>
-int main(int arg, char** argv){	
+int main(int argc, char** argv){	
+	if(argc != 2){
+		printf("usage: %s <prompt>\n", argv[0]);
+		exit(1);
+	}
 	gpt2* gpt = load_model("gpt2.safetensors");
 	char* prompt = argv[1];
 	size_t seqlen = tokenize_gpt(gpt, prompt);
