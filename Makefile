@@ -9,7 +9,7 @@ OBJS=json.o util.o main.o gpt2.o
 CC = clang
 WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-parameter -Wmissing-declarations -Wmissing-variable-declarations
 CFLAGS_COMMON = $(WARNINGS) -std=c99 -c -MMD -MP -D_GNU_SOURCE
-CFLAGS_RELEASE = $(CFLAGS_COMMON) -O2
+CFLAGS_RELEASE = $(CFLAGS_COMMON) -O3 -march=native 
 CFLAGS_DEBUG = $(CFLAGS_COMMON) -O0 -g
 
 # set up linker

@@ -36,6 +36,7 @@ int main(int argc, char** argv){
 	to_npy(u, "embed.npy");
 	printf("embed\n");
 
+
 	char name[1024];
 	for(int l = 0; l < 1; l++){
 		sprintf(name, "model.layers.%d.input_layernorm.weight", l);

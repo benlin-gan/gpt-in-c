@@ -248,7 +248,7 @@ double get_time(){
 	clock_gettime(CLOCK_MONOTONIC, &t);
 	return t.tv_sec + t.tv_nsec * 1e-9;
 }
-void matmul_base(const float* a, const float* b, float* c, size_t M, size_t N, size_t K){
+void matmul_base(const float* restrict a, const float* restrict b, float* restrict c, size_t M, size_t N, size_t K){
 	//a : M x K
 	//b : K x N
 	//c : M x N 
@@ -571,7 +571,7 @@ void loopgen(gpt2* gpt, size_t seqlen){
 	bool caching = false;
 	for(int i = 0; i < 200; i++){
 		grid* lg = logits(gpt, gpt->ctx, seqlen + i, caching);
-		int tok = topk(lg, 3, 1.0);	
+		int tok = topk(lg, 10, 0.7);	
 		print_tok(gpt, tok);
 		gpt->ctx[seqlen + i] = tok;
 		//sprintf(name, "lgits%zu.npy", seqlen + i);
