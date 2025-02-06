@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/mman.h>
+//#include <cblas.h>
 #define TIMING 0
 void print_tuple(FILE* f, const size_t* arr, size_t n){
 	fprintf(f, "(");
@@ -252,6 +253,10 @@ void matmul_base(const float* restrict a, const float* restrict b, float* restri
 	//a : M x K
 	//b : K x N
 	//c : M x N 
+	/*cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                M, N, K,
+                1.0f, a, K, b, N,
+                0.0f, c, N);*/
 	for(size_t i = 0; i < M * N; i++){
 		c[i] = 0.0;
 	}
@@ -454,16 +459,21 @@ grid* mix(const grid* up, const grid* upb, const grid* down, const grid* downb, 
 void tmove(tblock* t, grid* ctx, bool caching){
 	grid* dctx = deep_copy(ctx);
 	ln(dctx, t->ln1, t->ln1b);
+	//float b = get_time();
 	grid* psa = sea(t->q, t->qb, t->k, t->kb, t->v, t->vb, t->o, t->ob, dctx, &t->kcache, &t->vcache, caching);
+	//b = get_time() - b;
 	madd(ctx, psa);
 	destroy_grid(dctx);
 	destroy_grid(psa);
 	dctx = deep_copy(ctx);
 	ln(dctx, t->ln2, t->ln2b);
+	//float c = get_time();
 	grid* pmix = mix(t->up, t->upb, t->down, t->downb, dctx);
+	//c = get_time() - c;
 	madd(ctx, pmix);
 	destroy_grid(dctx);
 	destroy_grid(pmix);
+	//printf("sa: %.5f, mlp: %.5f\n", b, c);
 }
 grid* embedgpt_caching(int tok, size_t seqno, const grid* te, const grid* pe){
 	size_t shape[8]; //n x t x d 
