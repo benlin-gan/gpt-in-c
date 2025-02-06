@@ -708,6 +708,14 @@ gpt2* load_model(char* path){
 	int h = open("gpt2-offsets.bin", O_RDONLY);
 	out->offsets = malloc(201032);
 	read(h, out->offsets, 201032);
+	int l = open("merges.npy", O_RDONLY);
+	lseek(l, 128, SEEK_SET);
+	out->merges = malloc(200000);
+	read(l, out->merges, 200000);
+	for(int i = 0; i < 10; i++){
+		printf("%d\n", out->merges[i]);
+	}
+	close(l);
 	close(g); 
 	close(h);
 	return out;

@@ -43,6 +43,7 @@ struct gpt2{
 	int ctx[1024];
 	int* offsets;
 	char* toks;
+	unsigned short* merges;
 };
 typedef struct gpt2 gpt2;
 void destroy_model(gpt2*);
