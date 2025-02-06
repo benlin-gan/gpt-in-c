@@ -795,7 +795,7 @@ int merge_prompt(int* tlist, int seqlen, unsigned short* merges){
 
 }
 unsigned short convert_byte(char* table, char b){
-	return table[(unsigned char) b];
+	return (unsigned char) table[(unsigned char) b];
 }
 int tokenize_gpt(gpt2* gpt, char* prompt){
 	int pl = strlen(prompt);
