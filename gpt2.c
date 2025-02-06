@@ -565,11 +565,8 @@ int biggest(grid* lg){
 	}
 	return out;
 }
-void loopgen(gpt2* gpt, int* s, size_t seqlen){
+void loopgen(gpt2* gpt, size_t seqlen){
 	srand(42);
-	for(size_t i = 0; i < seqlen; i++){
-		gpt->ctx[i] = s[i];
-	}
 	//	char name[128];
 	bool caching = false;
 	for(int i = 0; i < 200; i++){
@@ -712,6 +709,10 @@ gpt2* load_model(char* path){
 	lseek(l, 128, SEEK_SET);
 	out->merges = malloc(200000);
 	read(l, out->merges, 200000);
+	int m = open("gpt2-byteencoder.bin", O_RDONLY);
+	out->byte_encoder = malloc(256);
+	read(m, out->byte_encoder, 256);
+	close(m);
 	close(l);
 	close(g); 
 	close(h);
@@ -768,11 +769,50 @@ void print_tok(gpt2* gpt, int i){
 	printf("%s", word);
 	fflush(stdout);
 }
-unsigned short convert_byte(char b){
-	if(b >= 33 && b <= 126){
-		return b - 33;
+int merge_prompt(int* tlist, int seqlen, unsigned short* merges){
+	while(true){
+		unsigned short new_token = 50257;
+		int merge_idx = -1;
+		for(int i = 0; i < seqlen - 1; i++){
+			for(int j = 0; j < 50000; j++){
+				if(tlist[i] == merges[2 * j] && tlist[i + 1] == merges[2 * j + 1]){
+					if(new_token > (j + 256)){
+					   new_token = (j + 256);
+					   merge_idx = i;
+					}
+					break;
+				}
+			}
+		}
+		if(merge_idx == -1) break;
+		tlist[merge_idx] = new_token;
+		for(int i = merge_idx + 1; i < seqlen - 1; i++){
+			tlist[i] = tlist[i + 1];
+		}
+		seqlen--;
 	}
-}
-void tokenize(gpt2* gpt, char* prompt){
+	return seqlen;
 
+}
+unsigned short convert_byte(char* table, char b){
+	return table[(unsigned char) b];
+}
+int tokenize_gpt(gpt2* gpt, char* prompt){
+	int pl = strlen(prompt);
+	if(pl > 1024){
+		fprintf(stderr, "too large");
+		exit(1);
+	}
+	for(int i = 0; i < pl; i++){
+		gpt->ctx[i] = convert_byte(gpt->byte_encoder, prompt[i]);
+	}
+	int seqlen = merge_prompt(gpt->ctx, pl, gpt->merges);
+	for(int i = 0; i < seqlen; i++){
+		printf("%d ", gpt->ctx[i]);
+	}
+	printf("\n");
+	for(int i = 0; i < seqlen; i++){
+		print_tok(gpt, gpt->ctx[i]);
+	}
+	return seqlen;
 }

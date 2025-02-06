@@ -44,12 +44,14 @@ struct gpt2{
 	int* offsets;
 	char* toks;
 	unsigned short* merges;
+	char* byte_encoder;
 };
 typedef struct gpt2 gpt2;
 void destroy_model(gpt2*);
 gpt2* load_model(char* path);
+int tokenize_gpt(gpt2* gpt, char* prompt);
 grid* logits(gpt2*, int*, size_t, bool);
-void loopgen(gpt2*, int*, size_t);
+void loopgen(gpt2*, size_t);
 tblock* extract_tblock(struct json* j, char* base, int i);
 void tmove(tblock* t, grid* ctx, bool caching);
 grid* extract2grid(struct json* j, char* base, char* name);
@@ -57,3 +59,4 @@ void dump_grid(const grid* m, char* path);
 grid* embedgpt(int*, size_t, const grid*, const grid*);
 void destroy_grid(grid*);
 void print_tok(gpt2*, int);
+

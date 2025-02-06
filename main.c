@@ -9,13 +9,9 @@
 #include <stdlib.h>
 int main(int arg, char** argv){	
 	gpt2* gpt = load_model("gpt2.safetensors");
-	//prompt: "I"
-	int prompt[10];
-	prompt[0] = 1135;
-	//prompt[1] = 716;
-	print_tok(gpt, 1135);
-	//print_tok(gpt, 716);
-	loopgen(gpt, prompt, 1);
+	char* prompt = argv[1];
+	size_t seqlen = tokenize_gpt(gpt, prompt);
+	loopgen(gpt, seqlen);
 	destroy_model(gpt);
 	/*
 	model* m = init_model();

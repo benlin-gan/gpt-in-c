@@ -53,5 +53,5 @@ $(EXE1): $(OBJS:%.o=$(OBJS_DIR)/%-release.o)
 
 .PHONY: clean
 clean:
-	rm -rf .objs $(EXES_ALL) $(EXES_ALL:%=%-debug) *.npy
+	rm -rf .objs $(EXES_ALL) $(EXES_ALL:%=%-debug) 
 
