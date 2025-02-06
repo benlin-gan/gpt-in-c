@@ -420,7 +420,7 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	}
 	//do the score => weights conversion
 	smax(score);
-	
+
 	//score: n x h x t x t
 	//vct: n x h x t x hdim
 	//av : n x h x t x hdim
@@ -492,7 +492,7 @@ grid* embedgpt(int* s, size_t seqlen, const grid* te, const grid* pe){
 }
 grid* logits(gpt2* gpt, int* s, size_t seqlen, bool caching){
 	grid* ctx;
-   	if(caching){
+	if(caching){
 		ctx = embedgpt_caching(s[seqlen - 1], seqlen - 1, gpt->te, gpt->pe);
 	}else{
 		ctx = embedgpt(s, seqlen, gpt->te, gpt->pe);
@@ -507,6 +507,49 @@ grid* logits(gpt2* gpt, int* s, size_t seqlen, bool caching){
 	//printf("big one done");
 	destroy_grid(ctx);
 	return out;
+}
+int topk(grid* lg, size_t k, float temp){
+	size_t seqlen = lg->shape[lg->sh - 2];	
+	size_t cands = lg->shape[lg->sh - 1];
+	int arr[50257];
+	float* lst = lg->buff + (seqlen - 1) * cands;
+	for(size_t cand = 0; cand < k; cand++){
+		size_t where_to_insert = 0;
+		for(size_t i = 0; i < cand; i++){
+			if(lst[arr[i]] < lst[cand]){
+				where_to_insert++;	
+			}
+		}
+		for(size_t i = where_to_insert; i < cand; i++){	
+			arr[i + 1] = arr[i];
+		}
+		arr[where_to_insert] = cand;
+	}
+	for(size_t cand = k; cand < cands; cand++){
+		int where_to_insert = -1;
+		for(size_t i = 0; i < k; i++){
+			if(lst[arr[i]] < lst[cand]){
+				where_to_insert++;
+			}
+		}	
+		for(int i = 0; i < where_to_insert; i++){
+			arr[i] = arr[i + 1];
+		}
+		if(where_to_insert != -1) arr[where_to_insert] = cand;
+	}
+
+	//sampling:
+	float sum = 0.0;
+	for(size_t i = 0; i < k; i++){
+		sum += expf(lst[arr[i]]) / temp;
+	}
+	float r = (float) rand() / (float) RAND_MAX * sum;
+	float acc = 0.0;
+	for(size_t i = 0; i < k; i++){
+		acc += expf(lst[arr[i]]) / temp;
+		if(acc > r) return arr[i];
+	}
+	return arr[k - 1];
 }
 int biggest(grid* lg){
 	size_t seqlen = lg->shape[lg->sh - 2];	
@@ -523,14 +566,15 @@ int biggest(grid* lg){
 	return out;
 }
 void loopgen(gpt2* gpt, int* s, size_t seqlen){
+	srand(42);
 	for(size_t i = 0; i < seqlen; i++){
 		gpt->ctx[i] = s[i];
 	}
-//	char name[128];
+	//	char name[128];
 	bool caching = false;
 	for(int i = 0; i < 200; i++){
 		grid* lg = logits(gpt, gpt->ctx, seqlen + i, caching);
-		int tok = biggest(lg);	
+		int tok = topk(lg, 3, 1.0);	
 		print_tok(gpt, tok);
 		gpt->ctx[seqlen + i] = tok;
 		//sprintf(name, "lgits%zu.npy", seqlen + i);
