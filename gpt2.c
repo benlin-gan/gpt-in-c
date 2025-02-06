@@ -712,9 +712,6 @@ gpt2* load_model(char* path){
 	lseek(l, 128, SEEK_SET);
 	out->merges = malloc(200000);
 	read(l, out->merges, 200000);
-	for(int i = 0; i < 10; i++){
-		printf("%d\n", out->merges[i]);
-	}
 	close(l);
 	close(g); 
 	close(h);
@@ -770,4 +767,12 @@ void print_tok(gpt2* gpt, int i){
 	word[end - start] = '\0';
 	printf("%s", word);
 	fflush(stdout);
+}
+unsigned short convert_byte(char b){
+	if(b >= 33 && b <= 126){
+		return b - 33;
+	}
+}
+void tokenize(gpt2* gpt, char* prompt){
+
 }
