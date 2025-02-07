@@ -14,7 +14,7 @@ CFLAGS_DEBUG = $(CFLAGS_COMMON) -O0 -g
 
 # set up linker
 LD = clang
-LDFLAGS = -lm -lopenblas
+LDFLAGS = -lm 
 
 .PHONY: all
 all: release
