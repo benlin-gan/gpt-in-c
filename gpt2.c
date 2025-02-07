@@ -12,6 +12,11 @@
 #include <sys/mman.h>
 //#include <cblas.h>
 #define TIMING 0
+double get_time(){
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return t.tv_sec + t.tv_nsec * 1e-9;
+}
 void print_tuple(FILE* f, const size_t* arr, size_t n){
 	fprintf(f, "(");
 	for(size_t i = 0; i < n; i++){
@@ -187,18 +192,58 @@ void smax(grid* m){
 }
 grid* tp(const grid* m, size_t a, size_t b){
 	//copying transpose
+	//double f = get_time();
+	if(a >= m->sh || b >= m->sh){
+		fprintf(stderr, "dimensions (%zu , %zu) does not exist in ", a, b);
+		print_tuple(stderr, m->shape, m->sh);
+	}
+	if(a == b) return deep_copy(m);
+	if(a > b){
+		size_t temp = a;
+		a = b;
+		b = temp;	
+	}
 	grid* out = new_grid(m->shape, m->sh);
 	size_t temp = out->shape[a];
 	out->shape[a] = out->shape[b];
 	out->shape[b] = temp;
-	for(size_t i = 0; i < total_addressable(m); i++){
-		size_t* idx = address_interp(m, i);
-		temp = idx[a];
-		idx[a] = idx[b];
-		idx[b] = temp;
-		*lookup(out, idx) = m->buff[i];
-		free(idx);
+	
+	size_t outsize = 1;
+	size_t midsize = 1;
+	size_t insize = 1;
+	for(size_t i = 0; i < a; i++) insize *= m->shape[i];
+	for(size_t i = a + 1; i < b; i++) midsize *= m->shape[i];
+	for(size_t i = b + 1; i < m->sh; i++) outsize *= m->shape[i];
+	//key idea; pretend that we have a 5-tensor
+	size_t A = m->shape[a];
+	size_t B = m->shape[b];
+	size_t mstrides[5];
+	mstrides[0] = B * midsize * A * insize;
+	mstrides[1] = midsize * A * insize;
+	mstrides[2] = A * insize;
+	mstrides[3] = insize;
+	mstrides[4] = 1;
+	size_t outstrides[5];
+	mstrides[0] = A * midsize * B * insize;
+	mstrides[1] = midsize * B * insize;
+	mstrides[2] = B * insize;
+	mstrides[3] = insize;
+	mstrides[4] = 1;
+	for(size_t i = 0; i < outsize; i++){
+		for(size_t j = 0; j < b; j++){
+			for(size_t k = 0; k < midsize; k++){
+				for(size_t l = 0; l < a; l++){
+					for(size_t n = 0; n < insize; n++){
+						out->buff[outstrides[0] * i + outstrides[1] * j + outstrides[2] * k + outstrides[3] * l + n] = m->buff[mstrides[0] * i + mstrides[1] * j + mstrides[2] * k + mstrides[3] * l + n];
+					}
+				}
+			}
+		}
 	}
+
+	//f = get_time() - f;
+	//print_tuple(stdout, m->shape, m->sh);
+	//printf(": %.5f\n", f);
 	return out;
 }
 grid* broadcast(const grid* a, const grid* b){
@@ -243,11 +288,6 @@ void madd(grid* a, const grid* b){
 	if(bcast != NULL){
 		free(bcast);
 	}
-}
-double get_time(){
-	struct timespec t;
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	return t.tv_sec + t.tv_nsec * 1e-9;
 }
 void matmul_base(const float* restrict a, const float* restrict b, float* restrict c, size_t M, size_t N, size_t K){
 	//a : M x K
@@ -367,7 +407,7 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 			exit(1);
 		}
 	}
-	float times[128];
+	double times[128];
 	//ctx: n x t x d
 	//size_t t = ctx->shape[1];
 	size_t d = ctx->shape[2];
