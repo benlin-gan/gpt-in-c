@@ -211,30 +211,32 @@ grid* tp(const grid* m, size_t a, size_t b){
 	size_t outsize = 1;
 	size_t midsize = 1;
 	size_t insize = 1;
-	for(size_t i = 0; i < a; i++) insize *= m->shape[i];
+	for(size_t i = 0; i < a; i++) outsize *= m->shape[i];
 	for(size_t i = a + 1; i < b; i++) midsize *= m->shape[i];
-	for(size_t i = b + 1; i < m->sh; i++) outsize *= m->shape[i];
+	for(size_t i = b + 1; i < m->sh; i++) insize *= m->shape[i];
 	//key idea; pretend that we have a 5-tensor
 	size_t A = m->shape[a];
 	size_t B = m->shape[b];
 	size_t mstrides[5];
-	mstrides[0] = B * midsize * A * insize;
-	mstrides[1] = midsize * A * insize;
-	mstrides[2] = A * insize;
-	mstrides[3] = insize;
-	mstrides[4] = 1;
-	size_t outstrides[5];
 	mstrides[0] = A * midsize * B * insize;
 	mstrides[1] = midsize * B * insize;
 	mstrides[2] = B * insize;
 	mstrides[3] = insize;
 	mstrides[4] = 1;
+	size_t outstrides[5];
+	outstrides[0] = B * midsize * A * insize;
+	outstrides[1] = midsize * A * insize;
+	outstrides[2] = A * insize;
+	outstrides[3] = insize;
+	outstrides[4] = 1;
 	for(size_t i = 0; i < outsize; i++){
-		for(size_t j = 0; j < b; j++){
+		for(size_t j = 0; j < A; j++){
 			for(size_t k = 0; k < midsize; k++){
-				for(size_t l = 0; l < a; l++){
+				for(size_t l = 0; l < B; l++){
 					for(size_t n = 0; n < insize; n++){
-						out->buff[outstrides[0] * i + outstrides[1] * j + outstrides[2] * k + outstrides[3] * l + n] = m->buff[mstrides[0] * i + mstrides[1] * j + mstrides[2] * k + mstrides[3] * l + n];
+						size_t outidx = outstrides[0] * i + outstrides[1] * l + outstrides[2] * k + outstrides[3] * j + n;
+						size_t midx = mstrides[0] * i + mstrides[1] * j + mstrides[2] * k + mstrides[3] * l + n;
+						out->buff[outidx] = m->buff[midx];
 					}
 				}
 			}
@@ -502,7 +504,7 @@ grid* sea(const grid* q, const grid* qb, const grid* k, const grid* kb, const gr
 	times[17] = get_time();
 	destroy_grid(avt);
 	for(int i = 1; i < 18; i++){
-		printf("%d: %.6fs\n", i, times[i] - times[i - 1]);
+		//printf("%d: %.6fs\n", i, times[i] - times[i - 1]);
 	}
 	return final;
 }
